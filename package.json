@@ -1,0 +1,17 @@
+{
+  "name": "bitcraft-forge",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "prepare": "node scripts/ensure-bitcraft-bindings.mjs",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "start": "pnpm --filter forge start",
+    "dev": "pnpm --filter forge dev",
+    "db:generate": "pnpm --filter @forge/db db:generate"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}
