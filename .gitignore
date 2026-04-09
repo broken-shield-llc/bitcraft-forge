@@ -5,3 +5,4 @@ dist/
 apps/forge/vendor/
 *.log
 data/
+docs/

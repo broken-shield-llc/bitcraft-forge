@@ -75,7 +75,7 @@ export type StartStdbDeps = {
 
 /**
  * Starts a read-only SpacetimeDB client (BitCraft regional module).
- * Uses pre-generated BitCraft bindings + @clockworklabs/spacetimedb-sdk (see docs/FORGE_PLAN.md).
+ * Uses pre-generated BitCraft bindings + @clockworklabs/spacetimedb-sdk (see README).
  */
 export function startStdb(
   config: ForgeConfig,
