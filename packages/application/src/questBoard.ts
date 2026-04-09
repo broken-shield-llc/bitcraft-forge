@@ -1,0 +1,324 @@
+import {
+  formatItemStacksWithNames,
+  formatOfferStacksHighlightingLegendaryPlus,
+  isLegendaryPlusRarityTag,
+  isQuestOfferVisibleOnBoard,
+  questBoardLegendaryPlusRowBadge,
+  sortQuestOffersForBoard,
+  type QuestOfferReadPort,
+  type QuestOfferSnapshot,
+  type StallInventoryBoardPort,
+} from "@forge/domain";
+import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
+
+/** Hard cap so pathological cases do not build huge strings in memory. */
+const MAX_BOARD_OFFERS_HARD = 120;
+/** Discord message content max is 2000; stay under with room for footer. */
+const MAX_BOARD_CHARS = 1950;
+/** Discord StringSelect max options per menu and max `value` length. */
+export const QUEST_BOARD_SHOPS_PER_PAGE = 25;
+const MAX_DISCORD_SELECT_VALUE_LEN = 100;
+
+const EMPTY_NO_BUILDINGS =
+  "No monitored buildings yet — add one with `/forge building add`, then wait for SpacetimeDB data.";
+
+const EMPTY_WITH_BUILDINGS = [
+  "No quests in the live cache for your monitored buildings.",
+  "",
+  "The board only lists orders whose **shop** id matches a **monitored building id** (same BitCraft entity id). If you picked the wrong building, or there are no active trade orders for those stalls, the list stays empty.",
+  "If the bot just connected, wait a few seconds and try again. `/forge health` shows whether `trade_order_state` is syncing (row count).",
+].join("\n");
+
+export type QuestBoardDeps = {
+  repo: Pick<GuildConfigRepository, "listBuildings">;
+  entityCacheRepo: Pick<
+    EntityCacheRepository,
+    | "getInventoryBoardSnapshotForOwners"
+    | "getItemNames"
+    | "getItemRarityTags"
+    | "getBuildingNicknames"
+  >;
+  questOffers: QuestOfferReadPort;
+};
+
+type PreparedOk = {
+  shopOrder: string[];
+  byShop: Map<string, QuestOfferSnapshot[]>;
+  shopNicks: Map<string, string>;
+  itemNames: Map<number, string>;
+  rarityTags: Map<number, string>;
+  totalOffers: number;
+};
+
+async function prepareQuestBoard(
+  discordGuildId: string,
+  deps: QuestBoardDeps
+): Promise<
+  | { kind: "no_buildings" }
+  | { kind: "no_offers" }
+  | ({ kind: "ok" } & PreparedOk)
+> {
+  const buildings = await deps.repo.listBuildings(discordGuildId);
+  if (buildings.length === 0) return { kind: "no_buildings" };
+
+  const ids = new Set(buildings.map((b) => b.buildingId));
+  const sorted = sortQuestOffersForBoard(
+    deps.questOffers.snapshotForMonitoredBuildings(ids)
+  );
+  const shopIds = [...new Set(sorted.map((o) => o.shopEntityIdStr))];
+  const invSnap =
+    await deps.entityCacheRepo.getInventoryBoardSnapshotForOwners(shopIds);
+  const boardPort: StallInventoryBoardPort = {
+    hasInventoryDataForOwner: (id) => invSnap.get(id)?.hasData ?? false,
+    getTotalsForOwner: (id) => invSnap.get(id)?.totals ?? new Map(),
+  };
+  const offers = sorted.filter((o) =>
+    isQuestOfferVisibleOnBoard(o, boardPort)
+  );
+  if (offers.length === 0) return { kind: "no_offers" };
+
+  const shopOrder: string[] = [];
+  const byShop = new Map<string, QuestOfferSnapshot[]>();
+  for (const o of offers) {
+    if (!byShop.has(o.shopEntityIdStr)) {
+      shopOrder.push(o.shopEntityIdStr);
+      byShop.set(o.shopEntityIdStr, []);
+    }
+    byShop.get(o.shopEntityIdStr)!.push(o);
+  }
+
+  const itemIds = new Set<number>();
+  for (const o of offers) {
+    for (const s of o.offerStacks ?? []) itemIds.add(s.itemId);
+    for (const s of o.requiredStacks ?? []) itemIds.add(s.itemId);
+  }
+  const itemNames = await deps.entityCacheRepo.getItemNames([...itemIds]);
+  const offerItemIds = new Set<number>();
+  for (const o of offers) {
+    for (const s of o.offerStacks ?? []) offerItemIds.add(s.itemId);
+  }
+  const rarityTags = await deps.entityCacheRepo.getItemRarityTags([
+    ...offerItemIds,
+  ]);
+  const shopNicks =
+    await deps.entityCacheRepo.getBuildingNicknames(shopOrder);
+
+  return {
+    kind: "ok",
+    shopOrder,
+    byShop,
+    shopNicks,
+    itemNames,
+    rarityTags,
+    totalOffers: offers.length,
+  };
+}
+
+function truncateDiscord(s: string, max: number): string {
+  const t = s.trim();
+  if (t.length <= max) return t;
+  return t.slice(0, Math.max(0, max - 1)) + "…";
+}
+
+export type QuestBoardListShopRow = {
+  shopEntityIdStr: string;
+  label: string;
+  offerCount: number;
+};
+
+export type QuestBoardListResult =
+  | { kind: "no_buildings"; content: string }
+  | { kind: "no_offers"; content: string }
+  | {
+      kind: "list";
+      content: string;
+      totalShops: number;
+      totalOffers: number;
+      page: number;
+      pageSize: number;
+      totalPages: number;
+      shops: QuestBoardListShopRow[];
+    };
+
+/**
+ * Summary step for the interactive quest board (shop picker + pagination metadata).
+ */
+export async function executeQuestBoardList(
+  discordGuildId: string,
+  deps: QuestBoardDeps,
+  page: number
+): Promise<QuestBoardListResult> {
+  const p = await prepareQuestBoard(discordGuildId, deps);
+  if (p.kind === "no_buildings") {
+    return { kind: "no_buildings", content: EMPTY_NO_BUILDINGS };
+  }
+  if (p.kind === "no_offers") {
+    return { kind: "no_offers", content: EMPTY_WITH_BUILDINGS };
+  }
+
+  const { shopOrder, byShop, shopNicks, totalOffers } = p;
+  const validOrder = shopOrder.filter(
+    (id) => id.length <= MAX_DISCORD_SELECT_VALUE_LEN
+  );
+  const skippedLongIds = shopOrder.length - validOrder.length;
+  if (validOrder.length === 0) {
+    return {
+      kind: "no_offers",
+      content:
+        skippedLongIds > 0
+          ? "Every visible shop has a building id longer than Discord allows for menus (100 characters). The quest board can’t list them here."
+          : EMPTY_WITH_BUILDINGS,
+    };
+  }
+
+  const pageSize = QUEST_BOARD_SHOPS_PER_PAGE;
+  const totalPages = Math.max(1, Math.ceil(validOrder.length / pageSize));
+  const pageSafe = Math.min(Math.max(0, page), totalPages - 1);
+  const slice = validOrder.slice(
+    pageSafe * pageSize,
+    pageSafe * pageSize + pageSize
+  );
+
+  const shops: QuestBoardListShopRow[] = slice.map((id) => {
+    const nick = shopNicks.get(id)?.trim();
+    const name = nick && nick.length > 0 ? nick : "—";
+    const offerCount = byShop.get(id)!.length;
+    const label = truncateDiscord(
+      `${name} · ${offerCount} offer${offerCount === 1 ? "" : "s"}`,
+      100
+    );
+    return { shopEntityIdStr: id, label, offerCount };
+  });
+
+  const pageLine =
+    totalPages > 1
+      ? `Page **${pageSafe + 1}** / **${totalPages}** — pick a shop below.`
+      : "Pick a shop below to see quests.";
+
+  const skipNote =
+    skippedLongIds > 0
+      ? `\n_Note: ${skippedLongIds} shop(s) have building ids too long for Discord menus and are omitted._`
+      : "";
+
+  const content = [
+    "**Quest board**",
+    "",
+    `${totalOffers} offer${totalOffers === 1 ? "" : "s"} across **${shopOrder.length}** shop${shopOrder.length === 1 ? "" : "s"}.`,
+    pageLine,
+    skipNote,
+    "",
+  ].join("\n");
+
+  return {
+    kind: "list",
+    content,
+    totalShops: shopOrder.length,
+    totalOffers,
+    page: pageSafe,
+    pageSize,
+    totalPages,
+    shops,
+  };
+}
+
+function buildOfferLines(
+  o: QuestOfferSnapshot,
+  itemNames: Map<number, string>,
+  rarityTags: Map<number, string>
+): string[] {
+  const hasLegendaryPlusReward = (o.offerStacks ?? []).some((s) => {
+    const t = rarityTags.get(s.itemId);
+    return typeof t === "string" && isLegendaryPlusRarityTag(t);
+  });
+  const ratingPrefix = hasLegendaryPlusReward
+    ? `${questBoardLegendaryPlusRowBadge()} · `
+    : "";
+  const offerLine =
+    o.offerStacks && o.offerStacks.length > 0
+      ? formatOfferStacksHighlightingLegendaryPlus(
+          o.offerStacks,
+          itemNames,
+          rarityTags
+        )
+      : o.offerSummary;
+  const reqLine =
+    o.requiredStacks && o.requiredStacks.length > 0
+      ? formatItemStacksWithNames(o.requiredStacks, itemNames)
+      : o.requiredSummary;
+  return [
+    `• ${ratingPrefix}Offer: ${offerLine}`,
+    `  Request: ${reqLine}`,
+    `  Stock: ${o.remainingStock}`,
+  ];
+}
+
+export type QuestBoardShopDetailResult =
+  | { kind: "not_found"; content: string }
+  | { kind: "ok"; content: string };
+
+/**
+ * Full quest lines for a single monitored shop (after picking from the summary).
+ */
+export async function executeQuestBoardShopDetail(
+  discordGuildId: string,
+  shopEntityIdStr: string,
+  deps: QuestBoardDeps
+): Promise<QuestBoardShopDetailResult> {
+  const p = await prepareQuestBoard(discordGuildId, deps);
+  if (p.kind === "no_buildings") {
+    return { kind: "not_found", content: EMPTY_NO_BUILDINGS };
+  }
+  if (p.kind === "no_offers") {
+    return { kind: "not_found", content: EMPTY_WITH_BUILDINGS };
+  }
+
+  const shopOffers = p.byShop.get(shopEntityIdStr);
+  if (!shopOffers || shopOffers.length === 0) {
+    return {
+      kind: "not_found",
+      content:
+        "That shop isn’t on this board (no visible offers, or it isn’t monitored).",
+    };
+  }
+
+  const nick = p.shopNicks.get(shopEntityIdStr)?.trim();
+  const shopName = nick && nick.length > 0 ? nick : "—";
+  const lines: string[] = [
+    "**Quest board**",
+    "",
+    `**${shopName}** (${shopOffers.length} offer${shopOffers.length === 1 ? "" : "s"})`,
+    "",
+  ];
+
+  let shown = 0;
+  const footerAfterShown = (nextShown: number): string => {
+    const remaining = shopOffers.length - nextShown;
+    if (remaining <= 0) return "";
+    return `\n\n… and **${remaining}** more offers.`;
+  };
+
+  const fitsWithFooter = (nextLines: string[]): boolean => {
+    const foot = footerAfterShown(shown + 1);
+    const candidate = [...lines, ...nextLines].join("\n") + foot;
+    return candidate.length <= MAX_BOARD_CHARS;
+  };
+
+  for (const o of shopOffers) {
+    if (shown >= MAX_BOARD_OFFERS_HARD) break;
+    const offerLines = buildOfferLines(o, p.itemNames, p.rarityTags);
+    if (!fitsWithFooter(offerLines)) break;
+    lines.push(...offerLines);
+    shown += 1;
+  }
+
+  if (shown < shopOffers.length) {
+    lines.push("");
+    lines.push(`… and **${shopOffers.length - shown}** more offers.`);
+  }
+
+  let body = lines.join("\n");
+  if (body.length > MAX_BOARD_CHARS) {
+    body = body.slice(0, MAX_BOARD_CHARS - 3) + "…";
+  }
+  return { kind: "ok", content: body };
+}

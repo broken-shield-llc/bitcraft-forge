@@ -8,6 +8,62 @@
       "when": 1775626922325,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775700000000,
+      "tag": "0001_phase2_quest",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775800000000,
+      "tag": "0002_quest_subject_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775900000000,
+      "tag": "0003_stdb_entity_cache",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776000000000,
+      "tag": "0004_building_nickname_cache",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776100000000,
+      "tag": "0005_stdb_inventory_cache",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775673086313,
+      "tag": "0006_slim_riptide",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776200000000,
+      "tag": "0007_stdb_building_desc_cache",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1775677754171,
+      "tag": "0008_previous_pyro",
+      "breakpoints": true
     }
   ]
 }

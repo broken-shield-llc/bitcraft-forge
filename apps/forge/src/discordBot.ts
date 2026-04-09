@@ -7,9 +7,18 @@ import {
 } from "discord.js";
 import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
-import { buildForgeSlashCommand } from "./discord/forgeSlashCommands.js";
+import { buildForgeSlashCommand } from "@forge/discord-forge";
+import type { QuestOfferCache } from "./bitcraft/index.js";
+import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
+import {
+  handleForgeQuestBoardButton,
+  handleForgeQuestBoardSelect,
+} from "./discord/forgeQuestBoardInteractions.js";
 import { handleForgeInteraction } from "./discord/forgeInteractions.js";
-import type { GuildConfigRepository } from "@forge/repos";
+import {
+  FORGE_QB_SELECT_CUSTOM_ID,
+  isForgeQuestBoardComponent,
+} from "./discord/questBoardDiscord.js";
 
 function isDiscordUnauthorized(e: unknown): boolean {
   return (
@@ -37,6 +46,8 @@ Using application id: ${config.discordApplicationId}
 
 export type DiscordBotDeps = {
   repo: GuildConfigRepository;
+  entityCacheRepo: EntityCacheRepository;
+  questCache: QuestOfferCache;
 };
 
 export async function startDiscordBot(
@@ -81,12 +92,33 @@ export async function startDiscordBot(
     log.info(`Discord ready as ${c.user.tag}`);
   });
 
-  const ictx = { config, log, repo: deps.repo };
+  const ictx = {
+    config,
+    log,
+    repo: deps.repo,
+    entityCacheRepo: deps.entityCacheRepo,
+    questCache: deps.questCache,
+  };
 
   client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-    if (interaction.commandName !== "forge") return;
-    await handleForgeInteraction(interaction, ictx);
+    // Handle message components before slash commands so a slow `/forge` path
+    // cannot block this tick and let the 3s component token expire (10062).
+    if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === FORGE_QB_SELECT_CUSTOM_ID) {
+        await handleForgeQuestBoardSelect(interaction, ictx);
+      }
+      return;
+    }
+    if (interaction.isButton()) {
+      if (isForgeQuestBoardComponent(interaction.customId)) {
+        await handleForgeQuestBoardButton(interaction, ictx);
+      }
+      return;
+    }
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName !== "forge") return;
+      await handleForgeInteraction(interaction, ictx);
+    }
   });
 
   try {

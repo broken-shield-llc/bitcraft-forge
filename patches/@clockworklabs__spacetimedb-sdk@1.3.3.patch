@@ -1,0 +1,21 @@
+diff --git a/dist/index.js b/dist/index.js
+index b1d6831e8a3d6047acc7c4dd0f0416b9abfc4f13..d5e081b48b8261fd7f8048ba82db205d3b4aa13b 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -2243,11 +2243,11 @@ var TableCache32 = class {
+   update = (ctx, rowId, newRow, refCountDelta = 0) => {
+     const existingEntry = this.rows.get(rowId);
+     if (!existingEntry) {
+-      stdbLogger(
+-        "error",
+-        `Updating a row that was not present in the cache. Table: ${this.tableTypeInfo.tableName}, RowId: ${rowId}`
+-      );
+-      return void 0;
++      // FORGE: insert+delete can coalesce to update before the row exists in the
++      // client cache (SpacetimeDB TS SDK 1.3.x; see clockworklabs/SpacetimeDB#2894).
++      // Fall back to insert instead of dropping the row and logging an error.
++      const insCount = Math.max(1, refCountDelta);
++      return this.insert(ctx, { type: "insert", rowId, row: newRow }, insCount);
+     }
+     const [oldRow, previousCount] = existingEntry;
+     const refCount = Math.max(1, previousCount + refCountDelta);

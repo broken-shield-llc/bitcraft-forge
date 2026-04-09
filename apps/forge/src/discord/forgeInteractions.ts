@@ -1,29 +1,52 @@
 import {
+  ChannelType,
   type ChatInputCommandInteraction,
-  PermissionFlagsBits,
+  type InteractionEditReplyOptions,
+  MessageFlags,
 } from "discord.js";
 import {
-  formatBuildingKind,
-  normalizeScopedId,
-  parseBuildingKind,
-} from "@forge/domain";
+  buildForgeHealthContent,
+  executeBuildingAdd,
+  executeBuildingList,
+  executeBuildingRemove,
+  executeClaimAdd,
+  executeClaimList,
+  executeClaimRemove,
+  executeQuestBoardList,
+  executeQuestComplete,
+  executeQuestLeaderboard,
+  executeSetAnnouncementChannel,
+} from "@forge/application";
 import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
-import { getStdbHealth } from "../stdbClient.js";
-import type { GuildConfigRepository } from "@forge/repos";
+import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
+import { getStdbHealth, type QuestOfferCache } from "../bitcraft/index.js";
+import {
+  isUnknownInteractionError,
+  requireManageGuild,
+} from "@forge/discord-forge";
+import {
+  buildQuestBoardListComponents,
+  questBoardEditPayload,
+} from "./questBoardDiscord.js";
 
 export type ForgeInteractionContext = {
   config: ForgeConfig;
   log: Logger;
   repo: GuildConfigRepository;
+  entityCacheRepo: EntityCacheRepository;
+  questCache: QuestOfferCache;
 };
 
-function requireManageGuild(interaction: ChatInputCommandInteraction): boolean {
-  if (!interaction.inGuild()) return false;
-  return Boolean(
-    interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)
-  );
-}
+const buildingDeps = (ctx: ForgeInteractionContext) => ({
+  repo: ctx.repo,
+  entityCacheRepo: ctx.entityCacheRepo,
+});
+
+const claimDeps = (ctx: ForgeInteractionContext) => ({
+  repo: ctx.repo,
+  entityCacheRepo: ctx.entityCacheRepo,
+});
 
 export async function handleForgeInteraction(
   interaction: ChatInputCommandInteraction,
@@ -35,38 +58,25 @@ export async function handleForgeInteraction(
   const sub = interaction.options.getSubcommand(true);
 
   if (!group && sub === "health") {
-    const h = getStdbHealth();
-    const lines = [
-      "**FORGE**",
-      `Module: \`${ctx.config.bitcraftModule}\``,
-      `Node \`${process.version}\``,
-      `SpacetimeDB connected: **${h.connected}**`,
-      `SpacetimeDB identity: \`${h.identityHex ?? "—"}\``,
-      `Subscription applied: **${h.subscriptionApplied}**`,
-      `\`region_connection_info\` rows (client cache): **${h.regionConnectionInfoCount}**`,
-    ];
-    if (h.lastError) lines.push(`Last STDB error: \`${h.lastError}\``);
-
+    const content = buildForgeHealthContent({
+      bitcraftWsUri: ctx.config.bitcraftWsUri,
+      bitcraftModule: ctx.config.bitcraftModule,
+      bitcraftJwtSet: Boolean(ctx.config.bitcraftJwt?.trim()),
+      nodeVersion: process.version,
+      health: getStdbHealth(),
+    });
     await interaction.reply({
-      ephemeral: true,
-      content: lines.join("\n"),
+      flags: MessageFlags.Ephemeral,
+      content,
     });
     return;
   }
 
   if (!interaction.inGuild() || !interaction.guildId) {
     await interaction.reply({
-      ephemeral: true,
-      content: "Use `/forge` claim and building commands in a server, not in DMs.",
-    });
-    return;
-  }
-
-  if (!requireManageGuild(interaction)) {
-    await interaction.reply({
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
       content:
-        "You need the **Manage Server** permission to configure FORGE monitors for this server.",
+        "Use `/forge` in a server (except `/forge health`, which works here).",
     });
     return;
   }
@@ -74,54 +84,154 @@ export async function handleForgeInteraction(
   const guildId = interaction.guildId;
 
   try {
-    if (group === "claim") {
-      if (sub === "list") {
-        const claims = await ctx.repo.listClaims(guildId);
-        await interaction.reply({
-          ephemeral: true,
-          content:
-            claims.length === 0
-              ? "No claims are being monitored yet. Use `/forge claim add`."
-              : `**Monitored claims (${claims.length})**\n${claims.map((c) => `• \`${c}\``).join("\n")}`,
-        });
+    if (group === "quest") {
+      if (sub === "board") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const list = await executeQuestBoardList(
+          guildId,
+          {
+            repo: ctx.repo,
+            entityCacheRepo: ctx.entityCacheRepo,
+            questOffers: ctx.questCache,
+          },
+          0
+        );
+        if (list.kind === "no_buildings" || list.kind === "no_offers") {
+          await interaction.editReply(
+            questBoardEditPayload(
+              list.content,
+              ctx.config.questBoardBannerUrl,
+              []
+            )
+          );
+          return;
+        }
+        await interaction.editReply(
+          questBoardEditPayload(
+            list.content,
+            ctx.config.questBoardBannerUrl,
+            buildQuestBoardListComponents(list) as InteractionEditReplyOptions["components"]
+          )
+        );
         return;
       }
 
-      const rawClaim = interaction.options.getString("claim_id", true);
-      const claimId = normalizeScopedId(rawClaim);
-      if (!claimId) {
-        await interaction.reply({
-          ephemeral: true,
-          content: "Invalid `claim_id` (empty or too long, max 128 characters).",
+      if (sub === "leaderboard") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const { content } = await executeQuestLeaderboard(guildId, {
+          repo: ctx.repo,
         });
+        await interaction.editReply({ content });
         return;
       }
 
-      if (sub === "add") {
-        const r = await ctx.repo.addClaim(guildId, claimId);
-        await interaction.reply({
-          ephemeral: true,
-          content:
-            r === "duplicate"
-              ? `Claim \`${claimId}\` is already monitored.`
-              : `Now monitoring claim \`${claimId}\`.`,
-        });
-        return;
-      }
-
-      if (sub === "remove") {
-        const removed = await ctx.repo.removeClaim(guildId, claimId);
-        await interaction.reply({
-          ephemeral: true,
-          content: removed
-            ? `Stopped monitoring claim \`${claimId}\`.`
-            : `Claim \`${claimId}\` was not in the monitor list.`,
-        });
+      if (sub === "complete") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const rawBuilding = interaction.options.getString("building_id", true);
+        const rawQuest = interaction.options.getString("quest_entity_id", true);
+        const { content } = await executeQuestComplete(
+          {
+            discordGuildId: guildId,
+            discordUserId: interaction.user.id,
+            rawBuildingId: rawBuilding,
+            rawQuestEntityId: rawQuest,
+          },
+          { repo: ctx.repo }
+        );
+        await interaction.editReply({ content });
         return;
       }
 
       await interaction.reply({
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
+        content: "Unknown `/forge quest` subcommand.",
+      });
+      return;
+    }
+
+    if (group === "channel" && sub === "set") {
+      if (!requireManageGuild(interaction)) {
+        await interaction.reply({
+          flags: MessageFlags.Ephemeral,
+          content:
+            "You need **Manage Server** to set announcement channels.",
+        });
+        return;
+      }
+      const ch = interaction.options.getChannel("announcements");
+      if (!ch) {
+        const { content } = await executeSetAnnouncementChannel(
+          guildId,
+          null,
+          { repo: ctx.repo }
+        );
+        await interaction.reply({
+          flags: MessageFlags.Ephemeral,
+          content,
+        });
+        return;
+      }
+      if (
+        ch.type !== ChannelType.GuildText &&
+        ch.type !== ChannelType.GuildAnnouncement
+      ) {
+        await interaction.reply({
+          flags: MessageFlags.Ephemeral,
+          content: "Pick a text or announcement channel.",
+        });
+        return;
+      }
+      const { content } = await executeSetAnnouncementChannel(
+        guildId,
+        ch.id,
+        { repo: ctx.repo }
+      );
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        content,
+      });
+      return;
+    }
+
+    if (!requireManageGuild(interaction)) {
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
+        content:
+          "You need the **Manage Server** permission to configure FORGE monitors for this server.",
+      });
+      return;
+    }
+
+    if (group === "claim") {
+      if (sub === "list") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const { content } = await executeClaimList(guildId, claimDeps(ctx));
+        await interaction.editReply({ content });
+        return;
+      }
+
+      const rawClaim = interaction.options.getString("claim_id", true);
+
+      if (sub === "add") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const { content } = await executeClaimAdd(guildId, rawClaim, {
+          repo: ctx.repo,
+        });
+        await interaction.editReply({ content });
+        return;
+      }
+
+      if (sub === "remove") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const { content } = await executeClaimRemove(guildId, rawClaim, {
+          repo: ctx.repo,
+        });
+        await interaction.editReply({ content });
+        return;
+      }
+
+      await interaction.reply({
+        flags: MessageFlags.Ephemeral,
         content: "Unknown `/forge claim` subcommand.",
       });
       return;
@@ -129,115 +239,83 @@ export async function handleForgeInteraction(
 
     if (group === "building") {
       if (sub === "list") {
-        const buildings = await ctx.repo.listBuildings(guildId);
-        await interaction.reply({
-          ephemeral: true,
-          content:
-            buildings.length === 0
-              ? "No buildings are being monitored yet. Use `/forge building add`."
-              : `**Monitored buildings (${buildings.length})**\n${buildings
-                  .map(
-                    (b) =>
-                      `• \`${b.buildingId}\` (${formatBuildingKind(b.kind)})${b.claimId ? ` — claim \`${b.claimId}\`` : ""}`
-                  )
-                  .join("\n")}`,
-        });
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const { content } = await executeBuildingList(
+          guildId,
+          buildingDeps(ctx)
+        );
+        await interaction.editReply({ content });
         return;
       }
 
       if (sub === "add") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const rawBuilding = interaction.options.getString("building_id", true);
-        const buildingId = normalizeScopedId(rawBuilding);
-        if (!buildingId) {
-          await interaction.reply({
-            ephemeral: true,
-            content:
-              "Invalid `building_id` (empty or too long, max 128 characters).",
-          });
-          return;
-        }
-
-        const kindRaw = interaction.options.getString("kind", true);
-        const kind = parseBuildingKind(kindRaw);
-        if (!kind) {
-          await interaction.reply({
-            ephemeral: true,
-            content:
-              "Invalid building `kind` (choose **Barter Stall** or **Barter Counter**).",
-          });
-          return;
-        }
-
         const rawOptClaim = interaction.options.getString("claim_id");
-        const optClaim =
-          rawOptClaim === null ? undefined : normalizeScopedId(rawOptClaim);
-        if (rawOptClaim !== null && rawOptClaim.trim() !== "" && !optClaim) {
-          await interaction.reply({
-            ephemeral: true,
-            content:
-              "Invalid optional `claim_id` (too long, max 128 characters).",
-          });
-          return;
-        }
-
-        const claimRef = optClaim ?? undefined;
-        const r = await ctx.repo.addBuilding(
+        const { content } = await executeBuildingAdd(
           guildId,
-          buildingId,
-          kind,
-          claimRef
+          {
+            rawBuildingId: rawBuilding,
+            rawClaimId: rawOptClaim,
+          },
+          buildingDeps(ctx)
         );
-        await interaction.reply({
-          ephemeral: true,
-          content:
-            r === "duplicate"
-              ? `Building \`${buildingId}\` is already monitored.`
-              : `Now monitoring building \`${buildingId}\` as **${formatBuildingKind(kind)}**${claimRef ? ` (claim \`${claimRef}\`)` : ""}.`,
-        });
+        await interaction.editReply({ content });
         return;
       }
 
       if (sub === "remove") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const rawBuilding = interaction.options.getString("building_id", true);
-        const buildingId = normalizeScopedId(rawBuilding);
-        if (!buildingId) {
-          await interaction.reply({
-            ephemeral: true,
-            content:
-              "Invalid `building_id` (empty or too long, max 128 characters).",
-          });
-          return;
-        }
-
-        const removed = await ctx.repo.removeBuilding(guildId, buildingId);
-        await interaction.reply({
-          ephemeral: true,
-          content: removed
-            ? `Stopped monitoring building \`${buildingId}\`.`
-            : `Building \`${buildingId}\` was not in the monitor list.`,
-        });
+        const { content } = await executeBuildingRemove(
+          guildId,
+          rawBuilding,
+          buildingDeps(ctx)
+        );
+        await interaction.editReply({ content });
         return;
       }
 
       await interaction.reply({
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
         content: "Unknown `/forge building` subcommand.",
       });
       return;
     }
 
     await interaction.reply({
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
       content: "Unknown FORGE command.",
     });
   } catch (e: unknown) {
     ctx.log.error("forge command failed", e);
+    if (isUnknownInteractionError(e)) {
+      ctx.log.warn(
+        "Discord interaction expired or invalid (10062); often caused by replying after 3s without defer"
+      );
+      return;
+    }
     const msg =
       e instanceof Error ? e.message : "Unexpected error while using the database.";
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ ephemeral: true, content: `Error: ${msg}` });
-    } else {
-      await interaction.reply({ ephemeral: true, content: `Error: ${msg}` });
+    const errContent = `Error: ${msg}`;
+    try {
+      if (interaction.deferred) {
+        await interaction.editReply({ content: errContent });
+      } else if (interaction.replied) {
+        await interaction.followUp({
+          flags: MessageFlags.Ephemeral,
+          content: errContent,
+        });
+      } else {
+        await interaction.reply({
+          flags: MessageFlags.Ephemeral,
+          content: errContent,
+        });
+      }
+    } catch (e2: unknown) {
+      if (!isUnknownInteractionError(e2)) {
+        ctx.log.warn("forge interaction error reply failed", e2);
+      }
     }
   }
 }

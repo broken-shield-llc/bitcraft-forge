@@ -8,6 +8,18 @@ export type ForgeConfig = {
   databaseUrl: string;
   pocEventLogPath: string | undefined;
   logLevel: "debug" | "info" | "warn" | "error";
+  /** Coalesce rapid quest/offer updates before posting to Discord (ms). */
+  announcementDebounceMs: number;
+  /** After STDB subscriptions apply, skip Discord quest announces for this long (absorbs replay). */
+  questAnnounceGraceMs: number;
+  /** Total offered quantity at/above this value is treated as high rarity. */
+  questRarityHighThreshold: number;
+  /** Min age (ms) before Postgres-cached STDB entity rows may be overwritten. */
+  stdbCacheTtlMs: number;
+  /**
+   * Optional image URL for `/forge quest board` (HTTPS). Shown as a wide banner above the text.
+   */
+  questBoardBannerUrl: string | undefined;
 };
 
 export type ConfigError = { key: string; message: string };
@@ -68,7 +80,70 @@ export function loadForgeConfig(
 
   const poc = f.FORGE_POC_EVENT_LOG?.trim();
 
+  const debounceRaw = f.FORGE_ANNOUNCEMENT_DEBOUNCE_MS?.trim();
+  let announcementDebounceMs = 4000;
+  if (debounceRaw !== undefined && debounceRaw !== "") {
+    const n = Number(debounceRaw);
+    if (!Number.isFinite(n) || n < 0 || n > 600_000) {
+      errors.push({
+        key: "FORGE_ANNOUNCEMENT_DEBOUNCE_MS",
+        message:
+          "FORGE_ANNOUNCEMENT_DEBOUNCE_MS must be a number between 0 and 600000",
+      });
+    } else {
+      announcementDebounceMs = Math.floor(n);
+    }
+  }
+
+  const graceRaw = f.FORGE_QUEST_ANNOUNCE_GRACE_MS?.trim();
+  let questAnnounceGraceMs = 4000;
+  if (graceRaw !== undefined && graceRaw !== "") {
+    const n = Number(graceRaw);
+    if (!Number.isFinite(n) || n < 0 || n > 120_000) {
+      errors.push({
+        key: "FORGE_QUEST_ANNOUNCE_GRACE_MS",
+        message:
+          "FORGE_QUEST_ANNOUNCE_GRACE_MS must be a number between 0 and 120000",
+      });
+    } else {
+      questAnnounceGraceMs = Math.floor(n);
+    }
+  }
+
+  const rarityRaw = f.FORGE_QUEST_RARITY_HIGH_THRESHOLD?.trim();
+  let questRarityHighThreshold = 100;
+  if (rarityRaw !== undefined && rarityRaw !== "") {
+    const n = Number(rarityRaw);
+    if (!Number.isFinite(n) || n < 1 || n > 1_000_000_000) {
+      errors.push({
+        key: "FORGE_QUEST_RARITY_HIGH_THRESHOLD",
+        message:
+          "FORGE_QUEST_RARITY_HIGH_THRESHOLD must be a number between 1 and 1000000000",
+      });
+    } else {
+      questRarityHighThreshold = Math.floor(n);
+    }
+  }
+
+  const ttlRaw = f.FORGE_STDB_CACHE_TTL_MS?.trim();
+  let stdbCacheTtlMs = 86_400_000;
+  if (ttlRaw !== undefined && ttlRaw !== "") {
+    const n = Number(ttlRaw);
+    if (!Number.isFinite(n) || n < 0 || n > 365 * 86_400_000) {
+      errors.push({
+        key: "FORGE_STDB_CACHE_TTL_MS",
+        message:
+          "FORGE_STDB_CACHE_TTL_MS must be between 0 and 31536000000 (365 days in ms)",
+      });
+    } else {
+      stdbCacheTtlMs = Math.floor(n);
+    }
+  }
+
   if (errors.length) return { ok: false, errors };
+
+  const questBoardBannerUrl =
+    f.FORGE_QUEST_BOARD_BANNER_URL?.trim() || undefined;
 
   return {
     ok: true,
@@ -82,6 +157,11 @@ export function loadForgeConfig(
       databaseUrl: databaseUrl!,
       pocEventLogPath: poc || undefined,
       logLevel,
+      announcementDebounceMs,
+      questAnnounceGraceMs,
+      questRarityHighThreshold,
+      stdbCacheTtlMs,
+      questBoardBannerUrl,
     },
   };
 }

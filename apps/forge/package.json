@@ -5,13 +5,17 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "@clockworklabs/spacetimedb-sdk": "1.3.3",
+    "@forge/application": "workspace:*",
     "@forge/config": "workspace:*",
+    "@forge/discord-forge": "workspace:*",
     "@forge/db": "workspace:*",
     "@forge/domain": "workspace:*",
     "@forge/logger": "workspace:*",

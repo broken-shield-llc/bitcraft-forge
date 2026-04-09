@@ -1,9 +1,13 @@
 import { loadDotenv, loadForgeConfig } from "@forge/config";
 import { createLogger } from "@forge/logger";
+import type { Client } from "discord.js";
+import { QuestOfferCache, startStdb } from "./bitcraft/index.js";
 import { startDiscordBot } from "./discordBot.js";
-import { startStdb } from "./stdbClient.js";
 import { createDb, createPool, runMigrations } from "@forge/db";
-import { DrizzleGuildConfigRepository } from "@forge/repos";
+import {
+  DrizzleEntityCacheRepository,
+  DrizzleGuildConfigRepository,
+} from "@forge/repos";
 
 loadDotenv();
 
@@ -20,6 +24,20 @@ const pool = createPool(loaded.config.databaseUrl);
 await runMigrations(pool, log);
 const db = createDb(pool);
 const repo = new DrizzleGuildConfigRepository(db);
+const entityCacheRepo = new DrizzleEntityCacheRepository(db);
 
-startStdb(loaded.config, log);
-await startDiscordBot(loaded.config, log, { repo });
+const questCache = new QuestOfferCache();
+const discordHolder: { client?: Client } = {};
+
+startStdb(loaded.config, log, {
+  repo,
+  entityCacheRepo,
+  questCache,
+  getDiscordClient: () => discordHolder.client,
+});
+
+discordHolder.client = await startDiscordBot(loaded.config, log, {
+  repo,
+  entityCacheRepo,
+  questCache,
+});
