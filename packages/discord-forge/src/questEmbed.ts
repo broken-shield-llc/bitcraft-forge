@@ -1,7 +1,8 @@
 import { EmbedBuilder } from "discord.js";
-import type { QuestOfferSnapshot } from "@forge/domain";
+import { type QuestOfferSnapshot } from "@forge/domain";
 
 const EMBED_COLOR = 0x3498db;
+const COMPLETION_EMBED_COLOR = 0x27ae60;
 /** Discord embed title max length */
 const TITLE_MAX = 256;
 
@@ -56,5 +57,55 @@ export function buildQuestOfferEmbed(
         inline: false,
       }
     )
+    .setTimestamp(new Date());
+}
+
+export type QuestCompletionEmbedInput = {
+  claimName?: string;
+  shopNickname?: string;
+  /** In-game name when cached, else STDB identity line from `formatCompletionSubjectDisplay`. */
+  traderDisplay: string;
+  offerSummary: string;
+  requiredSummary: string;
+  /** Omitted when the completed order was not in the local quest projection. */
+  remainingStock?: number;
+};
+
+/** Discord announcement when `barter_stall_order_accept` commits (separate from offer new/update embeds). */
+export function buildQuestCompletionEmbed(
+  input: QuestCompletionEmbedInput
+): EmbedBuilder {
+  const claim = input.claimName?.trim() || "—";
+  const shop = input.shopNickname?.trim() || "—";
+  let title = `Quest completed in ${claim} - ${shop}`;
+  if (title.length > TITLE_MAX) title = title.slice(0, TITLE_MAX - 1) + "…";
+  const fields = [
+    {
+      name: "Trader",
+      value: input.traderDisplay.slice(0, 1024),
+      inline: false,
+    },
+    {
+      name: "Offer",
+      value: input.offerSummary.slice(0, 1024),
+      inline: false,
+    },
+    {
+      name: "Request",
+      value: input.requiredSummary.slice(0, 1024),
+      inline: false,
+    },
+  ] as { name: string; value: string; inline: boolean }[];
+  if (input.remainingStock !== undefined) {
+    fields.push({
+      name: "Stock",
+      value: String(input.remainingStock),
+      inline: false,
+    });
+  }
+  return new EmbedBuilder()
+    .setTitle(title)
+    .setColor(COMPLETION_EMBED_COLOR)
+    .addFields(fields)
     .setTimestamp(new Date());
 }

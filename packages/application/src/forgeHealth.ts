@@ -3,7 +3,6 @@ export type ForgeHealthSnapshot = {
   connected: boolean;
   identityHex: string | null;
   subscriptionApplied: boolean;
-  regionConnectionInfoCount: number;
   tradeOrderRowCount: number;
   travelerTradeDescRowCount: number;
   lastError: string | null;
@@ -28,8 +27,7 @@ export function buildForgeHealthContent(input: ForgeHealthViewInput): string {
     `Node \`${input.nodeVersion}\``,
     `SpacetimeDB connected: **${h.connected}**`,
     `SpacetimeDB identity: \`${h.identityHex ?? "—"}\``,
-    `Subscription applied: **${h.subscriptionApplied}**`,
-    `\`region_connection_info\` rows (client cache): **${h.regionConnectionInfoCount}**`,
+    `Quest projection ready: **${h.subscriptionApplied}**`,
     `\`trade_order_state\` rows: **${h.tradeOrderRowCount}**`,
     `\`traveler_trade_order_desc\` rows: **${h.travelerTradeDescRowCount}**`,
   ];

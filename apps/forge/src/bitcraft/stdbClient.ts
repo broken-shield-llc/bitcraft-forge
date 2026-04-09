@@ -12,7 +12,6 @@ export type StdbHealth = {
   connected: boolean;
   identityHex: string | null;
   subscriptionApplied: boolean;
-  regionConnectionInfoCount: number;
   tradeOrderRowCount: number;
   travelerTradeDescRowCount: number;
   lastError: string | null;
@@ -22,7 +21,6 @@ const health: StdbHealth = {
   connected: false,
   identityHex: null,
   subscriptionApplied: false,
-  regionConnectionInfoCount: 0,
   tradeOrderRowCount: 0,
   travelerTradeDescRowCount: 0,
   lastError: null,
@@ -79,7 +77,6 @@ export function getStdbHealth(): StdbHealth {
 
 function refreshRowCount(conn: DbConnection): void {
   try {
-    health.regionConnectionInfoCount = conn.db.regionConnectionInfo.count();
     health.tradeOrderRowCount = conn.db.tradeOrderState.count();
     health.travelerTradeDescRowCount = conn.db.travelerTradeOrderDesc.count();
   } catch {
@@ -128,15 +125,6 @@ export function startStdb(
       health.lastError = null;
       log.info("SpacetimeDB connected", health.identityHex);
 
-      connection.db.regionConnectionInfo.onInsert((_ctx, row) => {
-        refreshRowCount(connection);
-        appendPocEvent(config.pocEventLogPath, {
-          kind: "region_connection_info_insert",
-          id: row.id,
-        });
-        log.debug("region_connection_info insert", row.id);
-      });
-
       wireQuestSubscriptions(connection, {
         config,
         log,
@@ -144,6 +132,19 @@ export function startStdb(
         entityCacheRepo: deps.entityCacheRepo,
         getDiscordClient: deps.getDiscordClient,
         questCache: deps.questCache,
+        onQuestProjectionReady: () => {
+          health.subscriptionApplied = true;
+          refreshRowCount(connection);
+          appendPocEvent(config.pocEventLogPath, {
+            kind: "subscription_applied",
+            table: "trade_order_state",
+            count: health.tradeOrderRowCount,
+          });
+          log.info(
+            "Quest projection subscriptions applied",
+            `trade_order_state rows: ${health.tradeOrderRowCount}`
+          );
+        },
       });
 
       wireStdbEntityCache(connection, {
@@ -151,23 +152,6 @@ export function startStdb(
         log,
         entityCacheRepo: deps.entityCacheRepo,
       });
-
-      connection
-        .subscriptionBuilder()
-        .onApplied(() => {
-          health.subscriptionApplied = true;
-          refreshRowCount(connection);
-          appendPocEvent(config.pocEventLogPath, {
-            kind: "subscription_applied",
-            table: "region_connection_info",
-            count: health.regionConnectionInfoCount,
-          });
-          log.info(
-            "Subscription applied",
-            `region_connection_info rows: ${health.regionConnectionInfoCount}`
-          );
-        })
-        .subscribe("SELECT * FROM region_connection_info");
     })
     .withToken(config.bitcraftJwt)
     .build();

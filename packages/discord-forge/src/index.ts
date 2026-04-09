@@ -4,4 +4,8 @@ export {
   isUnknownInteractionError,
   requireManageGuild,
 } from "./permissions.js";
-export { buildQuestOfferEmbed } from "./questEmbed.js";
+export {
+  buildQuestCompletionEmbed,
+  buildQuestOfferEmbed,
+  type QuestCompletionEmbedInput,
+} from "./questEmbed.js";

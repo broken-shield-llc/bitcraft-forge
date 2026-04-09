@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { QuestOfferSnapshot } from "@forge/domain";
-import { buildQuestOfferEmbed } from "./questEmbed.js";
+import { buildQuestCompletionEmbed, buildQuestOfferEmbed } from "./questEmbed.js";
 
 function baseSnap(over: Partial<QuestOfferSnapshot>): QuestOfferSnapshot {
   return {
@@ -73,5 +73,44 @@ describe("buildQuestOfferEmbed", () => {
       shopNickname: "Y",
     });
     expect(embed.toJSON().title).toBe("Quest Updated in X - Y");
+  });
+});
+
+describe("buildQuestCompletionEmbed", () => {
+  it("uses completion title, green color, trader, offer, request, stock", () => {
+    const embed = buildQuestCompletionEmbed({
+      claimName: "North",
+      shopNickname: "Stall",
+      traderDisplay: "PlayerOne",
+      offerSummary: "Gold ×1",
+      requiredSummary: "Iron ×2",
+      remainingStock: 0,
+    });
+    const j = embed.toJSON();
+    expect(j.title).toBe("Quest completed in North - Stall");
+    expect(j.color).toBe(0x27ae60);
+    expect(j.fields?.map((f) => f.name)).toEqual([
+      "Trader",
+      "Offer",
+      "Request",
+      "Stock",
+    ]);
+    expect(j.fields?.find((f) => f.name === "Trader")?.value).toBe("PlayerOne");
+    expect(j.fields?.find((f) => f.name === "Offer")?.value).toBe("Gold ×1");
+    expect(j.fields?.find((f) => f.name === "Request")?.value).toBe("Iron ×2");
+    expect(j.fields?.find((f) => f.name === "Stock")?.value).toBe("0");
+  });
+
+  it("omits Stock when remainingStock is undefined", () => {
+    const embed = buildQuestCompletionEmbed({
+      traderDisplay: "STDB `abc`",
+      offerSummary: "—",
+      requiredSummary: "—",
+    });
+    expect(embed.toJSON().fields?.map((f) => f.name)).toEqual([
+      "Trader",
+      "Offer",
+      "Request",
+    ]);
   });
 });

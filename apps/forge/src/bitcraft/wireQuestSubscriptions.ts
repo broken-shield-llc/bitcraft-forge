@@ -1,14 +1,20 @@
 import type {
   DbConnection,
+  PlayerBarterStallOrderAccept,
   TradeOrderState,
   TravelerTradeOrderDesc,
 } from "@bitcraft/bindings";
 import type { ForgeConfig } from "@forge/config";
 import {
+  buildQuestCompletionEmbed,
   buildQuestOfferEmbed,
   createKeyedDebouncer,
 } from "@forge/discord-forge";
-import { formatItemStacksWithNames } from "@forge/domain";
+import {
+  formatCompletionSubjectDisplay,
+  formatItemStacksWithNames,
+  questKeyFromParts,
+} from "@forge/domain";
 import type { Logger } from "@forge/logger";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
 import { ChannelType, type Client } from "discord.js";
@@ -22,6 +28,8 @@ export type WireQuestDeps = {
   entityCacheRepo: EntityCacheRepository;
   getDiscordClient: () => Client | undefined;
   questCache: QuestOfferCache;
+  /** Fires once both quest-related table subscriptions have applied and initial hydration ran. */
+  onQuestProjectionReady?: () => void;
 };
 
 type ScopeRef = { discordGuildId: string; forgeChannelId: string };
@@ -61,8 +69,15 @@ export function wireQuestSubscriptions(
   connection: DbConnection,
   deps: WireQuestDeps
 ): void {
-  const { config, log, repo, entityCacheRepo, getDiscordClient, questCache } =
-    deps;
+  const {
+    config,
+    log,
+    repo,
+    entityCacheRepo,
+    getDiscordClient,
+    questCache,
+    onQuestProjectionReady,
+  } = deps;
   const travelerDescById = new Map<number, TravelerTradeOrderDesc>();
   let shopToScopes = new Map<string, Set<string>>();
   let subscriptionsReady = 0;
@@ -88,6 +103,20 @@ export function wireQuestSubscriptions(
 
   const debouncer = createKeyedDebouncer(config.announcementDebounceMs);
 
+  /** Scope key + quest key; used to suppress stale "Quest Updated" after a barter completion. */
+  const QUEST_SUPPRESS_SEP = "\x1f";
+  const suppressQuestUpdateUntil = new Map<string, number>();
+
+  function questSuppressKey(scopeSk: string, questKey: string): string {
+    return `${scopeSk}${QUEST_SUPPRESS_SEP}${questKey}`;
+  }
+
+  function pruneExpiredSuppressEntries(now: number): void {
+    for (const [k, until] of suppressQuestUpdateUntil) {
+      if (until <= now) suppressQuestUpdateUntil.delete(k);
+    }
+  }
+
   const refreshShopIndex = async (): Promise<void> => {
     try {
       const pairs = await repo.listMonitoredBuildingScopePairs();
@@ -107,6 +136,26 @@ export function wireQuestSubscriptions(
     row: TradeOrderState,
     kind: "new" | "update"
   ): Promise<void> => {
+    const snap = mapTradeOrderToSnapshot(row);
+    if (kind === "update") {
+      if (!config.questAnnouncementTradeUpdates) {
+        log.debug(
+          "quest update announce skipped (FORGE_QUEST_ANNOUNCE_TRADE_UPDATES off)",
+          `quest=${snap.questKey}`
+        );
+        return;
+      }
+      const suppressUntil = suppressQuestUpdateUntil.get(
+        questSuppressKey(scopeSk, snap.questKey)
+      );
+      if (suppressUntil !== undefined && Date.now() < suppressUntil) {
+        log.debug(
+          "quest update announce skipped (after barter completion)",
+          `quest=${snap.questKey}`
+        );
+        return;
+      }
+    }
     const { discordGuildId, forgeChannelId } = parseScopeKey(scopeSk);
     const channelId = await repo.getAnnouncementChannel(
       discordGuildId,
@@ -125,7 +174,6 @@ export function wireQuestSubscriptions(
       log.debug("quest announce skipped (no discord client)");
       return;
     }
-    const snap = mapTradeOrderToSnapshot(row);
     let shopNickname: string | undefined;
     let claimName: string | undefined;
     let offerSummary = snap.offerSummary;
@@ -227,6 +275,151 @@ export function wireQuestSubscriptions(
   const canAnnounceLive = (): boolean =>
     dataReady && Date.now() >= announceNotBefore;
 
+  const announceQuestCompletion = async (
+    scopeSk: string,
+    shopId: string,
+    request: PlayerBarterStallOrderAccept,
+    callerHex: string
+  ): Promise<void> => {
+    if (!canAnnounceLive()) return;
+    const { discordGuildId, forgeChannelId } = parseScopeKey(scopeSk);
+    const channelId = await repo.getAnnouncementChannel(
+      discordGuildId,
+      forgeChannelId
+    );
+    if (!channelId) {
+      log.debug(
+        "quest completion announce skipped (no channel)",
+        `guild=${discordGuildId}`,
+        `forgeCh=${forgeChannelId}`
+      );
+      return;
+    }
+    const client = getDiscordClient();
+    if (!client) {
+      log.debug("quest completion announce skipped (no discord client)");
+      return;
+    }
+    let shopNickname: string | undefined;
+    let claimName: string | undefined;
+    try {
+      shopNickname = await entityCacheRepo.getBuildingNickname(shopId);
+    } catch (e: unknown) {
+      log.warn("building nickname lookup for completion announce failed", e);
+    }
+    try {
+      claimName = await entityCacheRepo.getClaimNameForBuilding(shopId);
+    } catch (e: unknown) {
+      log.warn("claim name lookup for completion announce failed", e);
+    }
+    const questKey = questKeyFromParts(
+      request.shopEntityId,
+      request.tradeOrderEntityId
+    );
+    const snap = questCache.get(questKey);
+    let offerSummary = snap?.offerSummary ?? "—";
+    let requiredSummary = snap?.requiredSummary ?? "—";
+    let remainingStock: number | undefined = snap?.remainingStock;
+    try {
+      if (snap) {
+        const ids = new Set<number>();
+        for (const s of snap.offerStacks ?? []) ids.add(s.itemId);
+        for (const s of snap.requiredStacks ?? []) ids.add(s.itemId);
+        if (ids.size > 0) {
+          const itemNames = await entityCacheRepo.getItemNames([...ids]);
+          if ((snap.offerStacks?.length ?? 0) > 0) {
+            offerSummary = formatItemStacksWithNames(
+              snap.offerStacks ?? [],
+              itemNames
+            );
+          }
+          if ((snap.requiredStacks?.length ?? 0) > 0) {
+            requiredSummary = formatItemStacksWithNames(
+              snap.requiredStacks ?? [],
+              itemNames
+            );
+          }
+        }
+      }
+    } catch (e: unknown) {
+      log.warn("item name lookup for completion announce failed", e);
+    }
+    let traderDisplay: string;
+    try {
+      const name = await entityCacheRepo.getTravelerUsernameForIdentity(
+        callerHex
+      );
+      const trimmed = name?.trim();
+      traderDisplay =
+        trimmed && trimmed.length > 0
+          ? trimmed
+          : formatCompletionSubjectDisplay(`s:${callerHex}`);
+    } catch (e: unknown) {
+      log.warn("traveler username lookup for completion announce failed", e);
+      traderDisplay = formatCompletionSubjectDisplay(`s:${callerHex}`);
+    }
+    const orderId = request.tradeOrderEntityId.toString();
+    try {
+      log.debug(
+        "quest completion announce send",
+        `guild=${discordGuildId}`,
+        `forgeCh=${forgeChannelId}`,
+        `channel=${channelId}`,
+        `order=${orderId}`
+      );
+      const ch = await client.channels.fetch(channelId);
+      if (
+        !ch ||
+        (ch.type !== ChannelType.GuildText &&
+          ch.type !== ChannelType.GuildAnnouncement)
+      ) {
+        log.debug(
+          "quest completion announce skipped (channel wrong type or missing)",
+          `guild=${discordGuildId}`,
+          `forgeCh=${forgeChannelId}`,
+          `channel=${channelId}`
+        );
+        return;
+      }
+      await ch.send({
+        embeds: [
+          buildQuestCompletionEmbed({
+            claimName,
+            shopNickname,
+            traderDisplay,
+            offerSummary,
+            requiredSummary,
+            ...(remainingStock !== undefined
+              ? { remainingStock }
+              : {}),
+          }),
+        ],
+      });
+    } catch (e: unknown) {
+      const code = (e as { code?: unknown } | null)?.code;
+      if (code === 50001 || code === 10003 || code === 50013) {
+        log.warn(
+          "quest completion announce failed (channel inaccessible)",
+          `guild=${discordGuildId}`,
+          `forgeCh=${forgeChannelId}`,
+          `channel=${channelId}`,
+          `code=${String(code)}`
+        );
+        try {
+          await repo.setAnnouncementChannel(
+            discordGuildId,
+            forgeChannelId,
+            null
+          );
+        } catch (e2: unknown) {
+          log.warn("failed to clear announcement channel after discord error", e2);
+        }
+        return;
+      }
+      log.warn("quest completion announce failed", e);
+    }
+  };
+
   const dispatchQuestAnnounce = (
     row: TradeOrderState,
     kind: "new" | "update"
@@ -304,6 +497,7 @@ export function wireQuestSubscriptions(
     questCache.upsert(snap);
     if (!dataReady) return;
     if (!canAnnounceLive()) return;
+    if (!config.questAnnouncementTradeUpdates) return;
     dispatchQuestAnnounce(row, "update");
   };
 
@@ -363,6 +557,7 @@ export function wireQuestSubscriptions(
       "Quest subscriptions ready",
       `traveler_desc=${travelerDescById.size} trade_orders=${connection.db.tradeOrderState.count()}`
     );
+    onQuestProjectionReady?.();
   };
 
   connection
@@ -382,9 +577,23 @@ export function wireQuestSubscriptions(
     const scopes = shopToScopes.get(shopId);
     if (!scopes || scopes.size === 0) return;
 
-    const subjectKey = `s:${ctx.event.callerIdentity.toHexString()}`;
+    const questKey = questKeyFromParts(
+      request.shopEntityId,
+      request.tradeOrderEntityId
+    );
+    const callerHex = ctx.event.callerIdentity.toHexString();
+    const suppressUntil = Date.now() + config.questCompletionSuppressUpdatesMs;
+    for (const sk of scopes) {
+      suppressQuestUpdateUntil.set(questSuppressKey(sk, questKey), suppressUntil);
+    }
+    if (suppressQuestUpdateUntil.size > 300) {
+      pruneExpiredSuppressEntries(Date.now());
+    }
+
+    const subjectKey = `s:${callerHex}`;
 
     for (const sk of scopes) {
+      void announceQuestCompletion(sk, shopId, request, callerHex);
       const { discordGuildId, forgeChannelId } = parseScopeKey(sk);
       void repo
         .recordQuestCompletion(
@@ -394,15 +603,13 @@ export function wireQuestSubscriptions(
           questEntityId,
           subjectKey
         )
-        .then((r) => {
-          if (r === "ok") {
-            log.debug(
-              "recorded barter completion",
-              `guild=${discordGuildId}`,
-              `forgeCh=${forgeChannelId}`,
-              `order=${questEntityId}`
-            );
-          }
+        .then(() => {
+          log.debug(
+            "recorded barter completion",
+            `guild=${discordGuildId}`,
+            `forgeCh=${forgeChannelId}`,
+            `order=${questEntityId}`
+          );
         })
         .catch((e: unknown) => {
           log.warn("recordQuestCompletion failed", e);

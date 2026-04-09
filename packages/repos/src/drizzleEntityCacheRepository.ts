@@ -403,4 +403,99 @@ export class DrizzleEntityCacheRepository implements EntityCacheRepository {
     }
     return out;
   }
+
+  async upsertUserStateMapping(
+    identityHex: string,
+    travelerEntityId: string,
+    ttlMs: number
+  ): Promise<void> {
+    const existing = await this.db
+      .select({ cachedAt: schema.stdbUserStateCache.cachedAt })
+      .from(schema.stdbUserStateCache)
+      .where(eq(schema.stdbUserStateCache.identityHex, identityHex))
+      .limit(1);
+    const row = existing[0];
+    if (row && !isStale(row.cachedAt, ttlMs)) return;
+
+    await this.db
+      .insert(schema.stdbUserStateCache)
+      .values({
+        identityHex,
+        travelerEntityId,
+        cachedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: schema.stdbUserStateCache.identityHex,
+        set: {
+          travelerEntityId,
+          cachedAt: new Date(),
+        },
+      });
+  }
+
+  async deleteUserStateMapping(identityHex: string): Promise<void> {
+    await this.db
+      .delete(schema.stdbUserStateCache)
+      .where(eq(schema.stdbUserStateCache.identityHex, identityHex));
+  }
+
+  async upsertPlayerUsername(
+    travelerEntityId: string,
+    username: string,
+    ttlMs: number
+  ): Promise<void> {
+    const existing = await this.db
+      .select({ cachedAt: schema.stdbPlayerUsernameCache.cachedAt })
+      .from(schema.stdbPlayerUsernameCache)
+      .where(
+        eq(schema.stdbPlayerUsernameCache.travelerEntityId, travelerEntityId)
+      )
+      .limit(1);
+    const row = existing[0];
+    if (row && !isStale(row.cachedAt, ttlMs)) return;
+
+    await this.db
+      .insert(schema.stdbPlayerUsernameCache)
+      .values({
+        travelerEntityId,
+        username,
+        cachedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: schema.stdbPlayerUsernameCache.travelerEntityId,
+        set: {
+          username,
+          cachedAt: new Date(),
+        },
+      });
+  }
+
+  async deletePlayerUsername(travelerEntityId: string): Promise<void> {
+    await this.db
+      .delete(schema.stdbPlayerUsernameCache)
+      .where(
+        eq(schema.stdbPlayerUsernameCache.travelerEntityId, travelerEntityId)
+      );
+  }
+
+  async getTravelerUsernameForIdentity(
+    identityHex: string
+  ): Promise<string | undefined> {
+    const uRows = await this.db
+      .select({
+        travelerEntityId: schema.stdbUserStateCache.travelerEntityId,
+      })
+      .from(schema.stdbUserStateCache)
+      .where(eq(schema.stdbUserStateCache.identityHex, identityHex))
+      .limit(1);
+    const tid = uRows[0]?.travelerEntityId;
+    if (!tid) return undefined;
+    const pRows = await this.db
+      .select({ username: schema.stdbPlayerUsernameCache.username })
+      .from(schema.stdbPlayerUsernameCache)
+      .where(eq(schema.stdbPlayerUsernameCache.travelerEntityId, tid))
+      .limit(1);
+    const u = pRows[0]?.username?.trim();
+    return u || undefined;
+  }
 }

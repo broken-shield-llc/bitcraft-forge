@@ -107,16 +107,22 @@ export async function handleForgeInteraction(
   }
 
   try {
+    /**
+     * Guild text-channel slashes are pre-deferred in `discordBot` before this runs.
+     * Fallback defer keeps tests and any other entrypoints safe.
+     */
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    }
+
     if (!group && sub === "enable") {
       if (!requireManageGuild(interaction)) {
-        await interaction.reply({
-          flags: MessageFlags.Ephemeral,
+        await interaction.editReply({
           content:
             "You need **Manage Server** to enable BitCraft Forge for a channel.",
         });
         return;
       }
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const { content } = await executeForgeEnable(
         guildId,
         forgeChannelId,
@@ -128,14 +134,12 @@ export async function handleForgeInteraction(
 
     if (!group && sub === "disable") {
       if (!requireManageGuild(interaction)) {
-        await interaction.reply({
-          flags: MessageFlags.Ephemeral,
+        await interaction.editReply({
           content:
             "You need **Manage Server** to disable BitCraft Forge for a channel.",
         });
         return;
       }
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const { content } = await executeForgeDisable(
         guildId,
         forgeChannelId,
@@ -146,8 +150,7 @@ export async function handleForgeInteraction(
     }
 
     /**
-     * Discord requires an initial response within ~3s. Never await the DB before
-     * deferReply on paths that will defer — slow Postgres caused 10062 Unknown interaction.
+     * Never await the DB before the deferred ack above — only after deferReply.
      */
     const replyIfNotEnabledAfterDefer = async (): Promise<boolean> => {
       const ok = await ctx.repo.isForgeChannelEnabled(guildId, forgeChannelId);
@@ -160,7 +163,6 @@ export async function handleForgeInteraction(
     };
 
     if (group === "quest") {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       if (!(await replyIfNotEnabledAfterDefer())) return;
 
       if (sub === "board") {
@@ -200,6 +202,7 @@ export async function handleForgeInteraction(
           forgeChannelId,
           {
             repo: ctx.repo,
+            entityCacheRepo: ctx.entityCacheRepo,
           }
         );
         await interaction.editReply({ content });
@@ -231,14 +234,12 @@ export async function handleForgeInteraction(
 
     if (group === "channel" && sub === "set") {
       if (!requireManageGuild(interaction)) {
-        await interaction.reply({
-          flags: MessageFlags.Ephemeral,
+        await interaction.editReply({
           content:
             "You need **Manage Server** to set announcement channels.",
         });
         return;
       }
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       if (!(await replyIfNotEnabledAfterDefer())) return;
 
       const ch = interaction.options.getChannel("announcements");
@@ -272,8 +273,7 @@ export async function handleForgeInteraction(
     }
 
     if (!requireManageGuild(interaction)) {
-      await interaction.reply({
-        flags: MessageFlags.Ephemeral,
+      await interaction.editReply({
         content:
           "You need the **Manage Server** permission to configure FORGE monitors for this server.",
       });
@@ -281,7 +281,6 @@ export async function handleForgeInteraction(
     }
 
     if (group === "claim") {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       if (!(await replyIfNotEnabledAfterDefer())) return;
 
       if (sub === "list") {
@@ -329,7 +328,6 @@ export async function handleForgeInteraction(
     }
 
     if (group === "building") {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       if (!(await replyIfNotEnabledAfterDefer())) return;
 
       if (sub === "list") {
@@ -376,15 +374,14 @@ export async function handleForgeInteraction(
       return;
     }
 
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
+    await interaction.editReply({
       content: "Unknown FORGE command.",
     });
   } catch (e: unknown) {
     ctx.log.error("forge command failed", e);
     if (isUnknownInteractionError(e)) {
       ctx.log.warn(
-        "Discord interaction expired or invalid (10062); often caused by replying after 3s without defer"
+        "Discord interaction expired or invalid (10062); token may have expired before defer, or callback already used"
       );
       return;
     }

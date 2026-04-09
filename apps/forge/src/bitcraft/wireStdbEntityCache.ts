@@ -6,6 +6,8 @@ import type {
   DbConnection,
   InventoryState,
   ItemDesc,
+  PlayerUsernameState,
+  UserState,
 } from "@bitcraft/bindings";
 import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
@@ -20,7 +22,8 @@ export type WireEntityCacheDeps = {
 
 /**
  * Subscribes to `item_desc`, `claim_state`, `building_state`, `building_desc`,
- * `building_nickname_state`, and `inventory_state`; mirrors rows into Postgres (TTL-gated where noted in repo).
+ * `building_nickname_state`, `inventory_state`, `user_state`, and `player_username_state`;
+ * mirrors rows into Postgres (TTL-gated where noted in repo).
  */
 export function wireStdbEntityCache(
   connection: DbConnection,
@@ -68,6 +71,21 @@ export function wireStdbEntityCache(
       .upsertInventoryState(id, owner, stdbRowToJson(row), ttl)
       .catch((e: unknown) =>
         log.warn("stdb inventory cache upsert failed", e)
+      );
+  };
+  const syncUserState = (row: UserState) => {
+    const identityHex = row.identity.toHexString();
+    const travelerEntityId = row.entityId.toString();
+    void entityCacheRepo
+      .upsertUserStateMapping(identityHex, travelerEntityId, ttl)
+      .catch((e: unknown) => log.warn("stdb user_state cache upsert failed", e));
+  };
+  const syncPlayerUsername = (row: PlayerUsernameState) => {
+    const id = row.entityId.toString();
+    void entityCacheRepo
+      .upsertPlayerUsername(id, row.username, ttl)
+      .catch((e: unknown) =>
+        log.warn("stdb player_username_state cache upsert failed", e)
       );
   };
 
@@ -149,10 +167,38 @@ export function wireStdbEntityCache(
       );
   });
 
+  connection.db.userState.onInsert((_ctx, row) => {
+    syncUserState(row);
+  });
+  connection.db.userState.onUpdate((_ctx, _o, row) => {
+    syncUserState(row);
+  });
+  connection.db.userState.onDelete((_ctx, row) => {
+    void entityCacheRepo
+      .deleteUserStateMapping(row.identity.toHexString())
+      .catch((e: unknown) =>
+        log.warn("stdb user_state cache delete failed", e)
+      );
+  });
+
+  connection.db.playerUsernameState.onInsert((_ctx, row) => {
+    syncPlayerUsername(row);
+  });
+  connection.db.playerUsernameState.onUpdate((_ctx, _o, row) => {
+    syncPlayerUsername(row);
+  });
+  connection.db.playerUsernameState.onDelete((_ctx, row) => {
+    void entityCacheRepo
+      .deletePlayerUsername(row.entityId.toString())
+      .catch((e: unknown) =>
+        log.warn("stdb player_username_state cache delete failed", e)
+      );
+  });
+
   let subsReady = 0;
   const onSubApplied = (): void => {
     subsReady += 1;
-    if (subsReady < 6) return;
+    if (subsReady < 8) return;
     try {
       for (const row of connection.db.itemDesc.iter()) syncItem(row);
       for (const row of connection.db.claimState.iter()) syncClaim(row);
@@ -161,12 +207,15 @@ export function wireStdbEntityCache(
       for (const row of connection.db.buildingNicknameState.iter())
         syncBuildingNickname(row);
       for (const row of connection.db.inventoryState.iter()) syncInventory(row);
+      for (const row of connection.db.userState.iter()) syncUserState(row);
+      for (const row of connection.db.playerUsernameState.iter())
+        syncPlayerUsername(row);
     } catch (e: unknown) {
       log.warn("stdb entity cache initial iter failed", e);
     }
     log.info(
       "STDB entity cache subscriptions ready",
-      `items=${connection.db.itemDesc.count()} claims=${connection.db.claimState.count()} buildings=${connection.db.buildingState.count()} buildingDescs=${connection.db.buildingDesc.count()} nicknames=${connection.db.buildingNicknameState.count()} inventories=${connection.db.inventoryState.count()}`
+      `items=${connection.db.itemDesc.count()} claims=${connection.db.claimState.count()} buildings=${connection.db.buildingState.count()} buildingDescs=${connection.db.buildingDesc.count()} nicknames=${connection.db.buildingNicknameState.count()} inventories=${connection.db.inventoryState.count()} userStates=${connection.db.userState.count()} playerUsernames=${connection.db.playerUsernameState.count()}`
     );
   };
 
@@ -199,4 +248,14 @@ export function wireStdbEntityCache(
     .subscriptionBuilder()
     .onApplied(onSubApplied)
     .subscribe("SELECT * FROM inventory_state");
+
+  connection
+    .subscriptionBuilder()
+    .onApplied(onSubApplied)
+    .subscribe("SELECT * FROM user_state");
+
+  connection
+    .subscriptionBuilder()
+    .onApplied(onSubApplied)
+    .subscribe("SELECT * FROM player_username_state");
 }

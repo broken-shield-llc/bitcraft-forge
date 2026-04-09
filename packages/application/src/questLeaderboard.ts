@@ -1,12 +1,54 @@
 import { formatCompletionSubjectDisplay } from "@forge/domain";
-import type { GuildConfigRepository } from "@forge/repos";
+import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
 
 export type QuestLeaderboardDeps = {
   repo: Pick<GuildConfigRepository, "questLeaderboard">;
+  entityCacheRepo: Pick<
+    EntityCacheRepository,
+    "getTravelerUsernameForIdentity"
+  >;
 };
 
 const EMPTY_LEADERBOARD =
   "No quest completions logged yet. Completing a barter at a **monitored** building records a completion automatically; `/forge quest complete` is optional.";
+
+async function resolveStdbIdentityDisplayNames(
+  entityCacheRepo: Pick<
+    EntityCacheRepository,
+    "getTravelerUsernameForIdentity"
+  >,
+  subjectKeys: string[]
+): Promise<Map<string, string>> {
+  const hexes = new Set<string>();
+  for (const key of subjectKeys) {
+    if (key.startsWith("s:")) {
+      const hex = key.slice(2).trim();
+      if (hex) hexes.add(hex);
+    }
+  }
+  const out = new Map<string, string>();
+  await Promise.all(
+    [...hexes].map(async (hex) => {
+      try {
+        const name = await entityCacheRepo.getTravelerUsernameForIdentity(hex);
+        const t = name?.trim();
+        if (t) out.set(`s:${hex}`, t);
+      } catch {
+        /* use STDB fallback below */
+      }
+    })
+  );
+  return out;
+}
+
+function leaderboardSubjectLine(
+  subjectKey: string,
+  stdbNameBySubject: Map<string, string>
+): string {
+  const named = stdbNameBySubject.get(subjectKey);
+  if (named) return named;
+  return formatCompletionSubjectDisplay(subjectKey);
+}
 
 /**
  * Builds the ephemeral `/forge quest leaderboard` message body.
@@ -26,11 +68,15 @@ export async function executeQuestLeaderboard(
   if (rows.length === 0) {
     return { content: EMPTY_LEADERBOARD };
   }
+  const stdbNameBySubject = await resolveStdbIdentityDisplayNames(
+    deps.entityCacheRepo,
+    rows.map((r) => r.subjectKey)
+  );
   const body = [
-    "**Quest leaderboard** (logged completions; includes STDB identities from barter accepts)",
+    "**Quest leaderboard** (logged completions; barter subjects show in-game names when cached)",
     ...rows.map(
       (r, i) =>
-        `${i + 1}. ${formatCompletionSubjectDisplay(r.subjectKey)} — **${r.completions}**`
+        `${i + 1}. ${leaderboardSubjectLine(r.subjectKey, stdbNameBySubject)} — **${r.completions}**`
     ),
   ].join("\n");
   return { content: body };

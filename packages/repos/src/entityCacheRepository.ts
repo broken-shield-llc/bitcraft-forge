@@ -79,4 +79,25 @@ export interface EntityCacheRepository {
   getInventoryBoardSnapshotForOwners(
     ownerEntityIds: string[]
   ): Promise<Map<string, { hasData: boolean; totals: Map<number, number> }>>;
+
+  /** Maps SpacetimeDB `Identity` hex → traveler `entityId` (from `user_state`). */
+  upsertUserStateMapping(
+    identityHex: string,
+    travelerEntityId: string,
+    ttlMs: number
+  ): Promise<void>;
+  deleteUserStateMapping(identityHex: string): Promise<void>;
+
+  /** Traveler `entityId` → in-game username (`player_username_state`). */
+  upsertPlayerUsername(
+    travelerEntityId: string,
+    username: string,
+    ttlMs: number
+  ): Promise<void>;
+  deletePlayerUsername(travelerEntityId: string): Promise<void>;
+
+  /** Resolved username when both `user_state` and `player_username_state` rows are cached. */
+  getTravelerUsernameForIdentity(
+    identityHex: string
+  ): Promise<string | undefined>;
 }

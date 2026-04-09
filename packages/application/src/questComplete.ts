@@ -49,7 +49,7 @@ export async function executeQuestComplete(
     };
   }
   const subjectKey = `d:${input.discordUserId}`;
-  const r = await deps.repo.recordQuestCompletion(
+  await deps.repo.recordQuestCompletion(
     input.discordGuildId,
     input.forgeChannelId,
     buildingId,
@@ -57,9 +57,6 @@ export async function executeQuestComplete(
     subjectKey
   );
   return {
-    content:
-      r === "duplicate"
-        ? "You already logged this quest completion."
-        : "Quest completion logged for the leaderboard (manual).",
+    content: "Quest completion logged for the leaderboard (manual).",
   };
 }

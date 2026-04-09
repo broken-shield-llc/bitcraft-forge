@@ -115,13 +115,9 @@ export const questCompletions = pgTable(
       .notNull(),
   },
   (t) => ({
-    guildForgeQuestSubjectUnq: uniqueIndex(
-      "quest_completions_guild_forge_quest_subject_unq"
-    ).on(
+    guildForgeIdx: index("quest_completions_guild_forge_idx").on(
       t.discordGuildId,
-      t.forgeChannelId,
-      t.questEntityId,
-      t.subjectKey
+      t.forgeChannelId
     ),
     forgeFk: foreignKey({
       columns: [t.discordGuildId, t.forgeChannelId],
@@ -196,3 +192,21 @@ export const stdbInventoryCache = pgTable(
     ),
   })
 );
+
+/** Cached `user_state`: SpacetimeDB identity hex → traveler `entityId` string. */
+export const stdbUserStateCache = pgTable("stdb_user_state_cache", {
+  identityHex: text("identity_hex").primaryKey(),
+  travelerEntityId: text("traveler_entity_id").notNull(),
+  cachedAt: timestamp("cached_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+/** Cached `player_username_state`: traveler `entityId` → in-game username. */
+export const stdbPlayerUsernameCache = pgTable("stdb_player_username_cache", {
+  travelerEntityId: text("traveler_entity_id").primaryKey(),
+  username: text("username").notNull(),
+  cachedAt: timestamp("cached_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});

@@ -272,19 +272,14 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
     subjectKey: string
   ): Promise<AddResult> {
     await this.ensureGuild(discordGuildId);
-    try {
-      await this.db.insert(schema.questCompletions).values({
-        discordGuildId,
-        forgeChannelId,
-        buildingId,
-        questEntityId,
-        subjectKey,
-      });
-      return "ok";
-    } catch (e: unknown) {
-      if (isPgUniqueViolation(e)) return "duplicate";
-      throw e;
-    }
+    await this.db.insert(schema.questCompletions).values({
+      discordGuildId,
+      forgeChannelId,
+      buildingId,
+      questEntityId,
+      subjectKey,
+    });
+    return "ok";
   }
 
   async questLeaderboard(

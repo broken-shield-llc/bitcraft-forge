@@ -2,11 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import { executeQuestLeaderboard } from "./questLeaderboard.js";
 
 describe("executeQuestLeaderboard", () => {
+  const entityCacheRepo = {
+    getTravelerUsernameForIdentity: vi.fn().mockResolvedValue(undefined),
+  };
+
   it("returns empty-state copy when there are no rows", async () => {
     const deps = {
       repo: {
         questLeaderboard: vi.fn().mockResolvedValue([]),
       },
+      entityCacheRepo,
     };
     const { content } = await executeQuestLeaderboard("g1", "c1", deps);
     expect(content).toContain("No quest completions logged yet");
@@ -21,6 +26,7 @@ describe("executeQuestLeaderboard", () => {
           { subjectKey: "s:deadbeef", completions: 2 },
         ]),
       },
+      entityCacheRepo,
     };
     const { content } = await executeQuestLeaderboard("g1", "c1", deps, {
       limit: 10,
@@ -28,6 +34,24 @@ describe("executeQuestLeaderboard", () => {
     expect(content).toContain("**Quest leaderboard**");
     expect(content).toContain("1. <@123456789> — **5**");
     expect(content).toContain("2. STDB `deadbeef` — **2**");
+    expect(deps.entityCacheRepo.getTravelerUsernameForIdentity).toHaveBeenCalledWith(
+      "deadbeef"
+    );
+  });
+
+  it("uses cached in-game username for s: subjects when available", async () => {
+    const deps = {
+      repo: {
+        questLeaderboard: vi.fn().mockResolvedValue([
+          { subjectKey: "s:abc", completions: 1 },
+        ]),
+      },
+      entityCacheRepo: {
+        getTravelerUsernameForIdentity: vi.fn().mockResolvedValue("TraderJo"),
+      },
+    };
+    const { content } = await executeQuestLeaderboard("g1", "c1", deps);
+    expect(content).toContain("1. TraderJo — **1**");
   });
 
   it("respects custom limit", async () => {
@@ -35,6 +59,7 @@ describe("executeQuestLeaderboard", () => {
       repo: {
         questLeaderboard: vi.fn().mockResolvedValue([]),
       },
+      entityCacheRepo,
     };
     await executeQuestLeaderboard("g1", "c1", deps, { limit: 25 });
     expect(deps.repo.questLeaderboard).toHaveBeenCalledWith("g1", "c1", 25);

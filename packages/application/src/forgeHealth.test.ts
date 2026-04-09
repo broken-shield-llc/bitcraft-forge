@@ -8,7 +8,6 @@ const baseHealth: ForgeHealthViewInput["health"] = {
   connected: true,
   identityHex: "abc123",
   subscriptionApplied: true,
-  regionConnectionInfoCount: 2,
   tradeOrderRowCount: 50,
   travelerTradeDescRowCount: 12,
   lastError: null,
@@ -43,9 +42,7 @@ describe("buildForgeHealthContent", () => {
     expect(content).toContain("`v22.0.0`");
     expect(content).toContain("SpacetimeDB connected: **true**");
     expect(content).toContain("`abc123`");
-    expect(content).toContain("Subscription applied: **true**");
-    expect(content).toContain("`region_connection_info`");
-    expect(content).toContain("**2**");
+    expect(content).toContain("Quest projection ready: **true**");
     expect(content).toContain("`trade_order_state`");
     expect(content).toContain("**50**");
     expect(content).toContain("`traveler_trade_order_desc`");

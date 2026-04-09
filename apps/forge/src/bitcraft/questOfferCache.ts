@@ -8,6 +8,10 @@ export class QuestOfferCache implements QuestOfferReadPort {
     return this.byKey.has(questKey);
   }
 
+  get(questKey: string): QuestOfferSnapshot | undefined {
+    return this.byKey.get(questKey);
+  }
+
   upsert(row: QuestOfferSnapshot): void {
     this.byKey.set(row.questKey, row);
   }

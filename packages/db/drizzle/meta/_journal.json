@@ -78,6 +78,34 @@
       "when": 1775756269845,
       "tag": "0010_overjoyed_sunfire",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1776400000000,
+      "tag": "0011_stdb_user_player_cache",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1775761025332,
+      "tag": "0012_wealthy_karma",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1776500000000,
+      "tag": "0013_quest_completion_multi_count",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1775763540664,
+      "tag": "0014_yummy_randall",
+      "breakpoints": true
     }
   ]
 }

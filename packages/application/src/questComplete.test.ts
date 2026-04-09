@@ -94,23 +94,4 @@ describe("executeQuestComplete", () => {
     );
   });
 
-  it("returns duplicate message when repo reports duplicate", async () => {
-    const deps = {
-      repo: {
-        isBuildingMonitored: vi.fn().mockResolvedValue(true),
-        recordQuestCompletion: vi.fn().mockResolvedValue("duplicate"),
-      },
-    };
-    const { content } = await executeQuestComplete(
-      {
-        discordGuildId: "g1",
-        forgeChannelId: "c1",
-        discordUserId: "u1",
-        rawBuildingId: "10",
-        rawQuestEntityId: "20",
-      },
-      deps
-    );
-    expect(content).toContain("already logged");
-  });
 });

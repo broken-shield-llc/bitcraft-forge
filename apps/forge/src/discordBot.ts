@@ -2,12 +2,17 @@ import {
   Client,
   Events,
   GatewayIntentBits,
+  MessageFlags,
   REST,
   Routes,
+  type ChatInputCommandInteraction,
 } from "discord.js";
 import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
-import { buildForgeSlashCommand } from "@forge/discord-forge";
+import {
+  buildForgeSlashCommand,
+  isUnknownInteractionError,
+} from "@forge/discord-forge";
 import type { QuestOfferCache } from "./bitcraft/index.js";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
 import {
@@ -27,6 +32,23 @@ function isDiscordUnauthorized(e: unknown): boolean {
     "status" in e &&
     (e as { status: unknown }).status === 401
   );
+}
+
+/**
+ * Defer guild `/forge` slash commands before routing into the handler so nothing else
+ * (e.g. quest-board component work) runs ahead of the 3s interaction ack window.
+ */
+function shouldPreDeferForgeSlash(
+  interaction: ChatInputCommandInteraction
+): boolean {
+  if (interaction.commandName !== "forge") return false;
+  const group = interaction.options.getSubcommandGroup(false);
+  const sub = interaction.options.getSubcommand(true);
+  if (!group && sub === "health") return false;
+  if (!interaction.inGuild() || !interaction.guildId) return false;
+  const ch = interaction.channel;
+  if (!interaction.channelId || !ch?.isTextBased()) return false;
+  return true;
 }
 
 function explainDiscordAuthFailure(config: ForgeConfig, phase: string): void {
@@ -101,8 +123,19 @@ export async function startDiscordBot(
   };
 
   client.on(Events.InteractionCreate, async (interaction) => {
-    // Handle message components before slash commands so a slow `/forge` path
-    // cannot block this tick and let the 3s component token expire (10062).
+    if (interaction.isChatInputCommand() && interaction.commandName === "forge") {
+      if (shouldPreDeferForgeSlash(interaction)) {
+        try {
+          await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        } catch (e: unknown) {
+          if (isUnknownInteractionError(e)) return;
+          throw e;
+        }
+      }
+      await handleForgeInteraction(interaction, ictx);
+      return;
+    }
+
     if (interaction.isStringSelectMenu()) {
       const p = parseForgeQuestBoardCustomId(interaction.customId);
       if (p?.type === "shop") {
@@ -118,10 +151,6 @@ export async function startDiscordBot(
         }
       }
       return;
-    }
-    if (interaction.isChatInputCommand()) {
-      if (interaction.commandName !== "forge") return;
-      await handleForgeInteraction(interaction, ictx);
     }
   });
 

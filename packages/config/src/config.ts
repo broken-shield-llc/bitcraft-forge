@@ -10,6 +10,16 @@ export type ForgeConfig = {
   logLevel: "debug" | "info" | "warn" | "error";
   /** Coalesce rapid quest/offer updates before posting to Discord (ms). */
   announcementDebounceMs: number;
+  /**
+   * When false, skip Discord announcements for `trade_order_state` **updates** (owner edits / stock changes).
+   * **New** listings still announce. Quest **completion** announcements still post when a barter accept commits.
+   */
+  questAnnouncementTradeUpdates: boolean;
+  /**
+   * After a committed barter accept, suppress matching **update** announcements for this long (per scope + quest key).
+   * Should exceed {@link ForgeConfig.announcementDebounceMs} so debounced updates are dropped.
+   */
+  questCompletionSuppressUpdatesMs: number;
   /** After STDB subscriptions apply, skip Discord quest announces for this long (absorbs replay). */
   questAnnounceGraceMs: number;
   /** Total offered quantity at/above this value is treated as high rarity. */
@@ -95,6 +105,44 @@ export function loadForgeConfig(
     }
   }
 
+  const tradeUpdatesRaw = (
+    f.FORGE_QUEST_ANNOUNCE_TRADE_UPDATES ?? ""
+  ).trim().toLowerCase();
+  let questAnnouncementTradeUpdates = true;
+  if (
+    tradeUpdatesRaw === "0" ||
+    tradeUpdatesRaw === "false" ||
+    tradeUpdatesRaw === "no"
+  ) {
+    questAnnouncementTradeUpdates = false;
+  } else if (
+    tradeUpdatesRaw !== "" &&
+    tradeUpdatesRaw !== "1" &&
+    tradeUpdatesRaw !== "true" &&
+    tradeUpdatesRaw !== "yes"
+  ) {
+    errors.push({
+      key: "FORGE_QUEST_ANNOUNCE_TRADE_UPDATES",
+      message:
+        "FORGE_QUEST_ANNOUNCE_TRADE_UPDATES must be 0/false/no or 1/true/yes (empty = true)",
+    });
+  }
+
+  let questCompletionSuppressUpdatesMs = announcementDebounceMs + 3000;
+  const suppressRaw = f.FORGE_QUEST_COMPLETION_SUPPRESS_UPDATE_MS?.trim();
+  if (suppressRaw !== undefined && suppressRaw !== "") {
+    const n = Number(suppressRaw);
+    if (!Number.isFinite(n) || n < 2000 || n > 120_000) {
+      errors.push({
+        key: "FORGE_QUEST_COMPLETION_SUPPRESS_UPDATE_MS",
+        message:
+          "FORGE_QUEST_COMPLETION_SUPPRESS_UPDATE_MS must be between 2000 and 120000",
+      });
+    } else {
+      questCompletionSuppressUpdatesMs = Math.floor(n);
+    }
+  }
+
   const graceRaw = f.FORGE_QUEST_ANNOUNCE_GRACE_MS?.trim();
   let questAnnounceGraceMs = 4000;
   if (graceRaw !== undefined && graceRaw !== "") {
@@ -158,6 +206,8 @@ export function loadForgeConfig(
       pocEventLogPath: poc || undefined,
       logLevel,
       announcementDebounceMs,
+      questAnnouncementTradeUpdates,
+      questCompletionSuppressUpdatesMs,
       questAnnounceGraceMs,
       questRarityHighThreshold,
       stdbCacheTtlMs,
