@@ -23,8 +23,8 @@ export {
 } from "./forgeChannelEnable.js";
 export {
   buildForgeHealthContent,
-  type ForgeHealthSnapshot,
   type ForgeHealthViewInput,
+  type ForgeStdbSnapshot,
 } from "./forgeHealth.js";
 export {
   executeQuestBoardList,

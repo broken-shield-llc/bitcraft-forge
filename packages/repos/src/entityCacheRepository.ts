@@ -1,5 +1,17 @@
 import type { BuildingKind } from "@forge/domain";
 
+/** Row counts in Postgres mirror tables (for `/forge health`). */
+export type EntityCacheTableCounts = {
+  itemDesc: number;
+  claimState: number;
+  buildingState: number;
+  buildingDesc: number;
+  buildingNickname: number;
+  inventoryState: number;
+  userState: number;
+  playerUsername: number;
+};
+
 /**
  * Persists first-seen SpacetimeDB entity snapshots (`item_desc`, `claim_state`, `building_state`,
  * `building_desc`, …) with TTL-gated refresh (see `FORGE_STDB_CACHE_TTL_MS`).
@@ -100,4 +112,7 @@ export interface EntityCacheRepository {
   getTravelerUsernameForIdentity(
     identityHex: string
   ): Promise<string | undefined>;
+
+  /** Counts rows in each `stdb_*_cache` table. */
+  getEntityCacheTableCounts(): Promise<EntityCacheTableCounts>;
 }

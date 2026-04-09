@@ -8,26 +8,6 @@ import type { QuestOfferCache } from "./questOfferCache.js";
 import { wireStdbEntityCache } from "./wireStdbEntityCache.js";
 import { wireQuestSubscriptions } from "./wireQuestSubscriptions.js";
 
-export type StdbHealth = {
-  connected: boolean;
-  identityHex: string | null;
-  subscriptionApplied: boolean;
-  tradeOrderRowCount: number;
-  travelerTradeDescRowCount: number;
-  lastError: string | null;
-};
-
-const health: StdbHealth = {
-  connected: false,
-  identityHex: null,
-  subscriptionApplied: false,
-  tradeOrderRowCount: 0,
-  travelerTradeDescRowCount: 0,
-  lastError: null,
-};
-
-let activeConnection: DbConnection | null = null;
-
 /**
  * SpacetimeDB often passes a WebSocket `CloseEvent` (not `Error`), so `message` is empty.
  * Surface `code` / `reason` / `wasClean` for diagnostics.
@@ -68,20 +48,22 @@ function connectErrorMessage(err: unknown): string {
   }
 }
 
-/** Keep Discord `/forge health` readable (full message still in logs). */
+/** Keep logs readable (full message still in structured log). */
 const MAX_LAST_ERROR_LEN = 400;
 
-export function getStdbHealth(): StdbHealth {
-  return { ...health };
-}
+/** Snapshot for `/forge health` (connection + quest table subscriptions). */
+export type StdbConnectionSnapshot = {
+  connected: boolean;
+  questProjectionReady: boolean;
+};
 
-function refreshRowCount(conn: DbConnection): void {
-  try {
-    health.tradeOrderRowCount = conn.db.tradeOrderState.count();
-    health.travelerTradeDescRowCount = conn.db.travelerTradeOrderDesc.count();
-  } catch {
-    /* ignore */
-  }
+const stdbSnapshot: StdbConnectionSnapshot = {
+  connected: false,
+  questProjectionReady: false,
+};
+
+export function getStdbConnectionSnapshot(): StdbConnectionSnapshot {
+  return { ...stdbSnapshot };
 }
 
 export type StartStdbDeps = {
@@ -104,9 +86,8 @@ export function startStdb(
     .withUri(config.bitcraftWsUri)
     .withModuleName(config.bitcraftModule)
     .onDisconnect(() => {
-      health.connected = false;
-      activeConnection = null;
-      health.lastError = "disconnected";
+      stdbSnapshot.connected = false;
+      stdbSnapshot.questProjectionReady = false;
       log.warn("SpacetimeDB disconnected");
     })
     .onConnectError((_ctx, err) => {
@@ -115,15 +96,12 @@ export function startStdb(
         msg.length > MAX_LAST_ERROR_LEN
           ? `${msg.slice(0, MAX_LAST_ERROR_LEN)}…`
           : msg;
-      health.lastError = `onConnectError: ${stored}`;
-      log.error("SpacetimeDB onConnectError", msg);
+      log.error("SpacetimeDB onConnectError", stored);
     })
     .onConnect((connection, identity) => {
-      activeConnection = connection;
-      health.connected = true;
-      health.identityHex = identity.toHexString();
-      health.lastError = null;
-      log.info("SpacetimeDB connected", health.identityHex);
+      stdbSnapshot.connected = true;
+      stdbSnapshot.questProjectionReady = false;
+      log.info("SpacetimeDB connected", identity.toHexString());
 
       wireQuestSubscriptions(connection, {
         config,
@@ -133,16 +111,21 @@ export function startStdb(
         getDiscordClient: deps.getDiscordClient,
         questCache: deps.questCache,
         onQuestProjectionReady: () => {
-          health.subscriptionApplied = true;
-          refreshRowCount(connection);
+          stdbSnapshot.questProjectionReady = true;
+          let tradeOrderRows = 0;
+          try {
+            tradeOrderRows = connection.db.tradeOrderState.count();
+          } catch {
+            /* ignore */
+          }
           appendPocEvent(config.pocEventLogPath, {
             kind: "subscription_applied",
             table: "trade_order_state",
-            count: health.tradeOrderRowCount,
+            count: tradeOrderRows,
           });
           log.info(
             "Quest projection subscriptions applied",
-            `trade_order_state rows: ${health.tradeOrderRowCount}`
+            `trade_order_state rows: ${tradeOrderRows}`
           );
         },
       });
@@ -155,10 +138,4 @@ export function startStdb(
     })
     .withToken(config.bitcraftJwt)
     .build();
-
-  setInterval(() => {
-    const c = activeConnection;
-    if (!c || !health.connected) return;
-    refreshRowCount(c);
-  }, 30_000);
 }

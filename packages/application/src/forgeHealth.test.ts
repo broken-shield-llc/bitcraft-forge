@@ -4,75 +4,59 @@ import {
   type ForgeHealthViewInput,
 } from "./forgeHealth.js";
 
-const baseHealth: ForgeHealthViewInput["health"] = {
+const sampleStdb: ForgeHealthViewInput["stdb"] = {
   connected: true,
-  identityHex: "abc123",
-  subscriptionApplied: true,
-  tradeOrderRowCount: 50,
-  travelerTradeDescRowCount: 12,
-  lastError: null,
+  questProjectionReady: true,
 };
 
-function input(
-  overrides: Partial<ForgeHealthViewInput> = {}
-): ForgeHealthViewInput {
-  const {
-    health: healthOverride,
-    bitcraftWsUri = "wss://example.test/stdb",
-    bitcraftModule = "bitcraft-1",
-    bitcraftJwtSet = true,
-    nodeVersion = "v22.0.0",
-  } = overrides;
-  return {
-    bitcraftWsUri,
-    bitcraftModule,
-    bitcraftJwtSet,
-    nodeVersion,
-    health: { ...baseHealth, ...healthOverride },
-  };
-}
+const sampleCounts: ForgeHealthViewInput["entityCacheCounts"] = {
+  itemDesc: 100,
+  claimState: 5,
+  buildingState: 20,
+  buildingDesc: 8,
+  buildingNickname: 3,
+  inventoryState: 50,
+  userState: 12,
+  playerUsername: 11,
+};
 
 describe("buildForgeHealthContent", () => {
-  it("includes core config and STDB snapshot fields", () => {
-    const content = buildForgeHealthContent(input());
+  it("lists FORGE header, STDB lines, and each cache table with counts", () => {
+    const content = buildForgeHealthContent({
+      stdb: sampleStdb,
+      entityCacheCounts: sampleCounts,
+    });
     expect(content).toContain("**FORGE**");
-    expect(content).toContain("`wss://example.test/stdb`");
-    expect(content).toContain("`bitcraft-1`");
-    expect(content).toContain("BitCraft JWT: **set**");
-    expect(content).toContain("`v22.0.0`");
     expect(content).toContain("SpacetimeDB connected: **true**");
-    expect(content).toContain("`abc123`");
     expect(content).toContain("Quest projection ready: **true**");
-    expect(content).toContain("`trade_order_state`");
-    expect(content).toContain("**50**");
-    expect(content).toContain("`traveler_trade_order_desc`");
-    expect(content).toContain("**12**");
+    expect(content).toContain("Postgres STDB entity cache rows");
+    expect(content).toContain("`item_desc`: **100**");
+    expect(content).toContain("`claim_state`: **5**");
+    expect(content).toContain("`building_state`: **20**");
+    expect(content).toContain("`building_desc`: **8**");
+    expect(content).toContain("`building_nickname_state`: **3**");
+    expect(content).toContain("`inventory_state`: **50**");
+    expect(content).toContain("`user_state`: **12**");
+    expect(content).toContain("`player_username_state`: **11**");
   });
 
-  it("appends last STDB error when present", () => {
-    const content = buildForgeHealthContent(
-      input({ health: { ...baseHealth, lastError: "timeout" } })
-    );
-    expect(content).toContain("Last STDB error");
-    expect(content).toContain("timeout");
-  });
-
-  it("hints JWT when missing", () => {
-    const content = buildForgeHealthContent(
-      input({ bitcraftJwtSet: false, health: { ...baseHealth } })
-    );
-    expect(content).toContain("BitCraft JWT: **missing**");
-    expect(content).toContain("FORGE_BITCRAFT_JWT");
-  });
-
-  it("hints connection when JWT set but disconnected", () => {
-    const content = buildForgeHealthContent(
-      input({
-        bitcraftJwtSet: true,
-        health: { ...baseHealth, connected: false },
-      })
-    );
+  it("allows zero counts", () => {
+    const zeros: ForgeHealthViewInput["entityCacheCounts"] = {
+      itemDesc: 0,
+      claimState: 0,
+      buildingState: 0,
+      buildingDesc: 0,
+      buildingNickname: 0,
+      inventoryState: 0,
+      userState: 0,
+      playerUsername: 0,
+    };
+    const content = buildForgeHealthContent({
+      stdb: { connected: false, questProjectionReady: false },
+      entityCacheCounts: zeros,
+    });
     expect(content).toContain("SpacetimeDB connected: **false**");
-    expect(content).toContain("onConnectError");
+    expect(content).toContain("Quest projection ready: **false**");
+    expect(content).toContain("`item_desc`: **0**");
   });
 });

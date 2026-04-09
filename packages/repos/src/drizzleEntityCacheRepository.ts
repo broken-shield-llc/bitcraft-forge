@@ -3,10 +3,13 @@ import {
   inferBuildingKindFromDescName,
   type BuildingKind,
 } from "@forge/domain";
-import { eq, inArray } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 import type { ForgeDb } from "@forge/db";
 import { schema } from "@forge/db";
-import type { EntityCacheRepository } from "./entityCacheRepository.js";
+import type {
+  EntityCacheRepository,
+  EntityCacheTableCounts,
+} from "./entityCacheRepository.js";
 
 function isStale(cachedAt: Date, ttlMs: number): boolean {
   return Date.now() - cachedAt.getTime() >= ttlMs;
@@ -497,5 +500,53 @@ export class DrizzleEntityCacheRepository implements EntityCacheRepository {
       .limit(1);
     const u = pRows[0]?.username?.trim();
     return u || undefined;
+  }
+
+  async getEntityCacheTableCounts(): Promise<EntityCacheTableCounts> {
+    const countTable = async (
+      table:
+        | typeof schema.stdbItemCache
+        | typeof schema.stdbClaimCache
+        | typeof schema.stdbBuildingCache
+        | typeof schema.stdbBuildingDescCache
+        | typeof schema.stdbBuildingNicknameCache
+        | typeof schema.stdbInventoryCache
+        | typeof schema.stdbUserStateCache
+        | typeof schema.stdbPlayerUsernameCache
+    ): Promise<number> => {
+      const r = await this.db.select({ c: count() }).from(table);
+      return Number(r[0]?.c ?? 0);
+    };
+
+    const [
+      itemDesc,
+      claimState,
+      buildingState,
+      buildingDesc,
+      buildingNickname,
+      inventoryState,
+      userState,
+      playerUsername,
+    ] = await Promise.all([
+      countTable(schema.stdbItemCache),
+      countTable(schema.stdbClaimCache),
+      countTable(schema.stdbBuildingCache),
+      countTable(schema.stdbBuildingDescCache),
+      countTable(schema.stdbBuildingNicknameCache),
+      countTable(schema.stdbInventoryCache),
+      countTable(schema.stdbUserStateCache),
+      countTable(schema.stdbPlayerUsernameCache),
+    ]);
+
+    return {
+      itemDesc,
+      claimState,
+      buildingState,
+      buildingDesc,
+      buildingNickname,
+      inventoryState,
+      userState,
+      playerUsername,
+    };
   }
 }

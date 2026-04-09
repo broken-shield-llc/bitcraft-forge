@@ -23,7 +23,10 @@ import {
 import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
-import { getStdbHealth, type QuestOfferCache } from "../bitcraft/index.js";
+import {
+  getStdbConnectionSnapshot,
+  type QuestOfferCache,
+} from "../bitcraft/index.js";
 import {
   isUnknownInteractionError,
   requireManageGuild,
@@ -73,13 +76,27 @@ export async function handleForgeInteraction(
   const sub = interaction.options.getSubcommand(true);
 
   if (!group && sub === "health") {
-    const content = buildForgeHealthContent({
-      bitcraftWsUri: ctx.config.bitcraftWsUri,
-      bitcraftModule: ctx.config.bitcraftModule,
-      bitcraftJwtSet: Boolean(ctx.config.bitcraftJwt?.trim()),
-      nodeVersion: process.version,
-      health: getStdbHealth(),
-    });
+    const snap = getStdbConnectionSnapshot();
+    const stdb = {
+      connected: snap.connected,
+      questProjectionReady: snap.questProjectionReady,
+    };
+    let content: string;
+    try {
+      const entityCacheCounts =
+        await ctx.entityCacheRepo.getEntityCacheTableCounts();
+      content = buildForgeHealthContent({ stdb, entityCacheCounts });
+    } catch (e: unknown) {
+      ctx.log.warn("forge health cache counts failed", e);
+      content = [
+        "**FORGE**",
+        "",
+        `SpacetimeDB connected: **${stdb.connected}**`,
+        `Quest projection ready: **${stdb.questProjectionReady}**`,
+        "",
+        "Could not load Postgres cache counts (check DB and logs).",
+      ].join("\n");
+    }
     await interaction.reply({
       flags: MessageFlags.Ephemeral,
       content,
