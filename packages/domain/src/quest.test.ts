@@ -69,12 +69,12 @@ describe("reward rating helpers", () => {
     expect(isLegendaryPlusRarityTag("Epic")).toBe(false);
   });
 
-  it("labels Legendary+", () => {
-    expect(rewardRatingLabel("legendary_plus")).toContain("Legendary");
+  it("labels SPECIAL for legendary_plus rating", () => {
+    expect(rewardRatingLabel("legendary_plus")).toBe("SPECIAL");
   });
 
   it("quest board badge is bold and decorated", () => {
-    expect(questBoardLegendaryPlusRowBadge()).toContain("LEGENDARY+");
+    expect(questBoardLegendaryPlusRowBadge()).toContain("SPECIAL");
     expect(questBoardLegendaryPlusRowBadge()).toContain("✦");
   });
 });

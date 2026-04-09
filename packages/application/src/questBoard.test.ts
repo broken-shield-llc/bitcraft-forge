@@ -154,7 +154,7 @@ describe("executeQuestBoardShopDetail", () => {
     }
   });
 
-  it("prefixes Legendary+ when offer reward rarity is Legendary", async () => {
+  it("prefixes SPECIAL badge when offer reward rarity is Legendary", async () => {
     const offer = baseOffer({
       offerStacks: [{ itemId: 1, quantity: 1 }],
       requiredStacks: [],
@@ -180,7 +180,7 @@ describe("executeQuestBoardShopDetail", () => {
     const r = await executeQuestBoardShopDetail("g1", "c1", "10", deps);
     expect(r.kind).toBe("ok");
     if (r.kind === "ok") {
-      expect(r.content).toContain("**✦ LEGENDARY+ ✦**");
+      expect(r.content).toContain("**✦ SPECIAL ✦**");
       expect(r.content).toContain("**__Epic Loot ×1__**");
     }
   });

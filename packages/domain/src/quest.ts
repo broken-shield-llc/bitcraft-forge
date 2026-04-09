@@ -93,20 +93,20 @@ export function isLegendaryPlusRarityTag(tag: string): boolean {
 
 export function rewardRatingLabel(_r: RewardRating): string {
   void _r;
-  return "Legendary+";
+  return "SPECIAL";
 }
 
 /**
- * Markdown snippet for the quest board row when the offer includes a Legendary+ reward.
+ * Markdown snippet for the quest board row when the offer includes a Legendary/Mythic reward.
  * (Discord: bold + decorative glyphs; pair with `formatOfferStacksHighlightingLegendaryPlus`.)
  */
 export function questBoardLegendaryPlusRowBadge(): string {
-  return "**✦ LEGENDARY+ ✦**";
+  return "**✦ SPECIAL ✦**";
 }
 
 /**
  * Like `formatItemStacksWithNames`, but bolds (and underlines) each stack whose cached
- * rarity tag is Legendary or Mythic — the same items that trigger the Legendary+ row badge.
+ * rarity tag is Legendary or Mythic — the same items that trigger the SPECIAL row badge.
  */
 export function formatOfferStacksHighlightingLegendaryPlus(
   stacks: ItemStackLike[],
