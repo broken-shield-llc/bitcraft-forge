@@ -6,6 +6,7 @@ import {
 } from "discord.js";
 import {
   buildForgeHealthContent,
+  forgeHealthStdbMarkdownLines,
   executeBuildingAdd,
   executeBuildingList,
   executeBuildingRemove,
@@ -91,8 +92,7 @@ export async function handleForgeInteraction(
       content = [
         "**FORGE**",
         "",
-        `SpacetimeDB connected: **${stdb.connected}**`,
-        `Quest projection ready: **${stdb.questProjectionReady}**`,
+        ...forgeHealthStdbMarkdownLines(stdb),
         "",
         "Could not load Postgres cache counts (check DB and logs).",
       ].join("\n");

@@ -38,6 +38,58 @@ function createMockDbForAddBuilding(
   } as unknown as ForgeDb;
 }
 
+/**
+ * `recordQuestCompletion`: first insert is `ensureGuild` (onConflictDoNothing),
+ * second is `quest_completions` (always inserts; no duplicate short-circuit after migration 0013).
+ */
+function createMockDbForRecordQuestCompletion(): ForgeDb {
+  let insertCall = 0;
+  return {
+    insert: vi.fn(() => {
+      insertCall += 1;
+      if (insertCall % 2 === 1) {
+        return {
+          values: vi.fn(() => ({
+            onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+          })),
+        };
+      }
+      return {
+        values: vi.fn().mockResolvedValue(undefined),
+      };
+    }),
+  } as unknown as ForgeDb;
+}
+
+describe("DrizzleGuildConfigRepository.recordQuestCompletion", () => {
+  it("returns ok after ensureGuild + quest completion insert (no duplicate handling)", async () => {
+    const db = createMockDbForRecordQuestCompletion();
+    const repo = new DrizzleGuildConfigRepository(db);
+    const r = await repo.recordQuestCompletion(
+      "guild1",
+      "forge-ch",
+      "building99",
+      "quest42",
+      "s:deadbeef"
+    );
+    expect(r).toBe("ok");
+  });
+
+  it("allows repeated identical keys (second completion still ok)", async () => {
+    const db = createMockDbForRecordQuestCompletion();
+    const repo = new DrizzleGuildConfigRepository(db);
+    const args = [
+      "guild1",
+      "forge-ch",
+      "b1",
+      "q1",
+      "s:same",
+    ] as const;
+    expect(await repo.recordQuestCompletion(...args)).toBe("ok");
+    expect(await repo.recordQuestCompletion(...args)).toBe("ok");
+  });
+});
+
 describe("DrizzleGuildConfigRepository.addBuilding", () => {
   it("returns duplicate when insert fails with unique violation (Drizzle-wrapped)", async () => {
     const repo = new DrizzleGuildConfigRepository(

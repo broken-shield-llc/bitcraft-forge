@@ -23,6 +23,7 @@ export {
 } from "./forgeChannelEnable.js";
 export {
   buildForgeHealthContent,
+  forgeHealthStdbMarkdownLines,
   type ForgeHealthViewInput,
   type ForgeStdbSnapshot,
 } from "./forgeHealth.js";

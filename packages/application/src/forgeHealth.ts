@@ -11,6 +11,14 @@ export type ForgeHealthViewInput = {
   entityCacheCounts: EntityCacheTableCounts;
 };
 
+/** Shared with `/forge health` when Postgres counts fail — keep wording in one place. */
+export function forgeHealthStdbMarkdownLines(stdb: ForgeStdbSnapshot): string[] {
+  return [
+    `SpacetimeDB connected: **${stdb.connected}**`,
+    `Quest projection ready: **${stdb.questProjectionReady}**`,
+  ];
+}
+
 const CACHE_LINES: { key: keyof EntityCacheTableCounts; table: string }[] = [
   { key: "itemDesc", table: "`item_desc`" },
   { key: "claimState", table: "`claim_state`" },
@@ -28,8 +36,7 @@ export function buildForgeHealthContent(input: ForgeHealthViewInput): string {
   const lines = [
     "**FORGE**",
     "",
-    `SpacetimeDB connected: **${stdb.connected}**`,
-    `Quest projection ready: **${stdb.questProjectionReady}**`,
+    ...forgeHealthStdbMarkdownLines(stdb),
     "",
     "Postgres STDB entity cache rows (mirrored from BitCraft subscriptions):",
     ...CACHE_LINES.map(

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildForgeHealthContent,
+  forgeHealthStdbMarkdownLines,
   type ForgeHealthViewInput,
 } from "./forgeHealth.js";
 
@@ -19,6 +20,19 @@ const sampleCounts: ForgeHealthViewInput["entityCacheCounts"] = {
   userState: 12,
   playerUsername: 11,
 };
+
+describe("forgeHealthStdbMarkdownLines", () => {
+  it("matches health copy for booleans", () => {
+    const lines = forgeHealthStdbMarkdownLines({
+      connected: true,
+      questProjectionReady: false,
+    });
+    expect(lines).toEqual([
+      "SpacetimeDB connected: **true**",
+      "Quest projection ready: **false**",
+    ]);
+  });
+});
 
 describe("buildForgeHealthContent", () => {
   it("lists FORGE header, STDB lines, and each cache table with counts", () => {
