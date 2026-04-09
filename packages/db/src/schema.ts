@@ -1,8 +1,10 @@
 import {
+  foreignKey,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -12,12 +14,31 @@ import {
 export const discordGuilds = pgTable("discord_guilds", {
   id: uuid("id").defaultRandom().primaryKey(),
   discordGuildId: text("discord_guild_id").notNull().unique(),
-  /** Discord channel id for debounced barter/quest embeds (optional). */
-  announcementChannelId: text("announcement_channel_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
+
+/**
+ * A Discord channel where `/forge enable` was run: own monitors, leaderboard, and announcements.
+ * `announcementChannelId` null means quest/barter embeds are paused (`/forge channel set` cleared).
+ */
+export const forgeEnabledChannels = pgTable(
+  "forge_enabled_channels",
+  {
+    discordGuildId: text("discord_guild_id")
+      .notNull()
+      .references(() => discordGuilds.discordGuildId, { onDelete: "cascade" }),
+    discordChannelId: text("discord_channel_id").notNull(),
+    announcementChannelId: text("announcement_channel_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.discordGuildId, t.discordChannelId] }),
+  })
+);
 
 export const monitoredClaims = pgTable(
   "monitored_claims",
@@ -26,16 +47,25 @@ export const monitoredClaims = pgTable(
     discordGuildId: text("discord_guild_id")
       .notNull()
       .references(() => discordGuilds.discordGuildId, { onDelete: "cascade" }),
+    forgeChannelId: text("forge_channel_id").notNull(),
     claimId: text("claim_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (t) => ({
-    guildClaimUnq: uniqueIndex("monitored_claims_guild_claim_unq").on(
+    guildForgeClaimUnq: uniqueIndex("monitored_claims_guild_forge_claim_unq").on(
       t.discordGuildId,
+      t.forgeChannelId,
       t.claimId
     ),
+    forgeFk: foreignKey({
+      columns: [t.discordGuildId, t.forgeChannelId],
+      foreignColumns: [
+        forgeEnabledChannels.discordGuildId,
+        forgeEnabledChannels.discordChannelId,
+      ],
+    }).onDelete("cascade"),
   })
 );
 
@@ -46,6 +76,7 @@ export const monitoredBuildings = pgTable(
     discordGuildId: text("discord_guild_id")
       .notNull()
       .references(() => discordGuilds.discordGuildId, { onDelete: "cascade" }),
+    forgeChannelId: text("forge_channel_id").notNull(),
     buildingId: text("building_id").notNull(),
     kind: text("kind").notNull(),
     claimId: text("claim_id"),
@@ -54,10 +85,16 @@ export const monitoredBuildings = pgTable(
       .notNull(),
   },
   (t) => ({
-    guildBuildingUnq: uniqueIndex("monitored_buildings_guild_building_unq").on(
-      t.discordGuildId,
-      t.buildingId
-    ),
+    guildForgeBuildingUnq: uniqueIndex(
+      "monitored_buildings_guild_forge_building_unq"
+    ).on(t.discordGuildId, t.forgeChannelId, t.buildingId),
+    forgeFk: foreignKey({
+      columns: [t.discordGuildId, t.forgeChannelId],
+      foreignColumns: [
+        forgeEnabledChannels.discordGuildId,
+        forgeEnabledChannels.discordChannelId,
+      ],
+    }).onDelete("cascade"),
   })
 );
 
@@ -68,6 +105,7 @@ export const questCompletions = pgTable(
     discordGuildId: text("discord_guild_id")
       .notNull()
       .references(() => discordGuilds.discordGuildId, { onDelete: "cascade" }),
+    forgeChannelId: text("forge_channel_id").notNull(),
     /** `d:<discordUserId>` for manual logs; `s:<identityHex>` from STDB barter accept. */
     subjectKey: text("subject_key").notNull(),
     buildingId: text("building_id").notNull(),
@@ -77,9 +115,21 @@ export const questCompletions = pgTable(
       .notNull(),
   },
   (t) => ({
-    guildQuestSubjectUnq: uniqueIndex(
-      "quest_completions_guild_quest_subject_unq"
-    ).on(t.discordGuildId, t.questEntityId, t.subjectKey),
+    guildForgeQuestSubjectUnq: uniqueIndex(
+      "quest_completions_guild_forge_quest_subject_unq"
+    ).on(
+      t.discordGuildId,
+      t.forgeChannelId,
+      t.questEntityId,
+      t.subjectKey
+    ),
+    forgeFk: foreignKey({
+      columns: [t.discordGuildId, t.forgeChannelId],
+      foreignColumns: [
+        forgeEnabledChannels.discordGuildId,
+        forgeEnabledChannels.discordChannelId,
+      ],
+    }).onDelete("cascade"),
   })
 );
 

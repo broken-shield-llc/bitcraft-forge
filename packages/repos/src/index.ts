@@ -1,7 +1,7 @@
 export type {
   AddResult,
   GuildConfigRepository,
-  MonitoredBuildingGuildPair,
+  MonitoredBuildingScopePair,
   MonitoredBuildingRow,
   QuestLeaderboardRow,
 } from "./guildConfigRepository.js";

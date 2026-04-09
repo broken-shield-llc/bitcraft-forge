@@ -33,6 +33,7 @@ describe("executeBuildingAdd", () => {
     const deps = baseBuildingDeps();
     const { content } = await executeBuildingAdd(
       "g1",
+      "c1",
       { rawBuildingId: "", rawClaimId: null },
       deps
     );
@@ -47,6 +48,7 @@ describe("executeBuildingAdd", () => {
     const deps = baseBuildingDeps();
     const { content } = await executeBuildingAdd(
       "g1",
+      "c1",
       { rawBuildingId: "x".repeat(129), rawClaimId: null },
       deps
     );
@@ -64,12 +66,14 @@ describe("executeBuildingAdd", () => {
     });
     const { content } = await executeBuildingAdd(
       "g1",
+      "c1",
       { rawBuildingId: "99", rawClaimId: null },
       deps
     );
     expect(content).toContain("already monitored");
     expect(deps.repo.addBuilding).toHaveBeenCalledWith(
       "g1",
+      "c1",
       "99",
       "stall",
       undefined
@@ -80,6 +84,7 @@ describe("executeBuildingAdd", () => {
     const deps = baseBuildingDeps();
     const { content } = await executeBuildingAdd(
       "g1",
+      "c1",
       { rawBuildingId: "10", rawClaimId: "y".repeat(129) },
       deps
     );

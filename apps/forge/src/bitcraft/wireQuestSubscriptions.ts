@@ -24,16 +24,31 @@ export type WireQuestDeps = {
   questCache: QuestOfferCache;
 };
 
-/** shop entity id string → Discord guild ids monitoring that building */
-function buildShopToGuilds(
+type ScopeRef = { discordGuildId: string; forgeChannelId: string };
+
+function scopeKey(r: ScopeRef): string {
+  return `${r.discordGuildId}\x1f${r.forgeChannelId}`;
+}
+
+function parseScopeKey(k: string): ScopeRef {
+  const i = k.indexOf("\x1f");
+  return {
+    discordGuildId: k.slice(0, i),
+    forgeChannelId: k.slice(i + 1),
+  };
+}
+
+/** shop entity id → scope keys (`guildId` + unit separator + `forgeChannelId`) */
+function buildShopToScopes(
   pairs: Awaited<
-    ReturnType<GuildConfigRepository["listMonitoredBuildingGuildPairs"]>
+    ReturnType<GuildConfigRepository["listMonitoredBuildingScopePairs"]>
   >
 ): Map<string, Set<string>> {
   const m = new Map<string, Set<string>>();
-  for (const { discordGuildId, buildingId } of pairs) {
+  for (const { discordGuildId, forgeChannelId, buildingId } of pairs) {
+    const sk = scopeKey({ discordGuildId, forgeChannelId });
     const set = m.get(buildingId) ?? new Set<string>();
-    set.add(discordGuildId);
+    set.add(sk);
     m.set(buildingId, set);
   }
   return m;
@@ -49,7 +64,7 @@ export function wireQuestSubscriptions(
   const { config, log, repo, entityCacheRepo, getDiscordClient, questCache } =
     deps;
   const travelerDescById = new Map<number, TravelerTradeOrderDesc>();
-  let shopToGuilds = new Map<string, Set<string>>();
+  let shopToScopes = new Map<string, Set<string>>();
   let subscriptionsReady = 0;
   let dataReady = false;
   /** Quest keys present in the initial `trade_order_state` snapshot (replay inserts match these). */
@@ -75,8 +90,8 @@ export function wireQuestSubscriptions(
 
   const refreshShopIndex = async (): Promise<void> => {
     try {
-      const pairs = await repo.listMonitoredBuildingGuildPairs();
-      shopToGuilds = buildShopToGuilds(pairs);
+      const pairs = await repo.listMonitoredBuildingScopePairs();
+      shopToScopes = buildShopToScopes(pairs);
     } catch (e: unknown) {
       log.warn("failed to refresh monitored shop index", e);
     }
@@ -87,14 +102,22 @@ export function wireQuestSubscriptions(
     void refreshShopIndex();
   }, 45_000);
 
-  const announceToGuild = async (
-    discordGuildId: string,
+  const announceToScope = async (
+    scopeSk: string,
     row: TradeOrderState,
     kind: "new" | "update"
   ): Promise<void> => {
-    const channelId = await repo.getAnnouncementChannel(discordGuildId);
+    const { discordGuildId, forgeChannelId } = parseScopeKey(scopeSk);
+    const channelId = await repo.getAnnouncementChannel(
+      discordGuildId,
+      forgeChannelId
+    );
     if (!channelId) {
-      log.debug("quest announce skipped (no channel)", `guild=${discordGuildId}`);
+      log.debug(
+        "quest announce skipped (no channel)",
+        `guild=${discordGuildId}`,
+        `forgeCh=${forgeChannelId}`
+      );
       return;
     }
     const client = getDiscordClient();
@@ -142,6 +165,7 @@ export function wireQuestSubscriptions(
       log.debug(
         "quest announce send",
         `guild=${discordGuildId}`,
+        `forgeCh=${forgeChannelId}`,
         `channel=${channelId}`,
         `kind=${kind}`,
         `quest=${snap.questKey}`
@@ -155,6 +179,7 @@ export function wireQuestSubscriptions(
         log.debug(
           "quest announce skipped (channel wrong type or missing)",
           `guild=${discordGuildId}`,
+          `forgeCh=${forgeChannelId}`,
           `channel=${channelId}`
         );
         return;
@@ -180,11 +205,16 @@ export function wireQuestSubscriptions(
         log.warn(
           "quest announcement disabled (channel inaccessible)",
           `guild=${discordGuildId}`,
+          `forgeCh=${forgeChannelId}`,
           `channel=${channelId}`,
           `code=${String(code)}`
         );
         try {
-          await repo.setAnnouncementChannel(discordGuildId, null);
+          await repo.setAnnouncementChannel(
+            discordGuildId,
+            forgeChannelId,
+            null
+          );
         } catch (e2: unknown) {
           log.warn("failed to clear announcement channel after discord error", e2);
         }
@@ -203,29 +233,29 @@ export function wireQuestSubscriptions(
   ): void => {
     const snap = mapTradeOrderToSnapshot(row);
     const shopId = snap.shopEntityIdStr;
-    const guilds = shopToGuilds.get(shopId);
-    if (!guilds || guilds.size === 0) {
+    const scopes = shopToScopes.get(shopId);
+    if (!scopes || scopes.size === 0) {
       void refreshShopIndex().then(() => {
-        const g2 = shopToGuilds.get(shopId);
+        const g2 = shopToScopes.get(shopId);
         if (!g2 || g2.size === 0) return;
-        for (const gid of g2) {
-          const dk = `${gid}:${snap.questKey}:upd`;
+        for (const sk of g2) {
+          const dk = `${sk}:${snap.questKey}:upd`;
           if (kind === "new") {
-            void announceToGuild(gid, row, "new");
+            void announceToScope(sk, row, "new");
           } else {
-            debouncer(dk, () => announceToGuild(gid, row, "update"));
+            debouncer(dk, () => announceToScope(sk, row, "update"));
           }
         }
       });
       return;
     }
 
-    for (const gid of guilds) {
-      const dk = `${gid}:${snap.questKey}:upd`;
+    for (const sk of scopes) {
+      const dk = `${sk}:${snap.questKey}:upd`;
       if (kind === "new") {
-        void announceToGuild(gid, row, "new");
+        void announceToScope(sk, row, "new");
       } else {
-        debouncer(dk, () => announceToGuild(gid, row, "update"));
+        debouncer(dk, () => announceToScope(sk, row, "update"));
       }
     }
   };
@@ -349,19 +379,27 @@ export function wireQuestSubscriptions(
     if (ctx.event.status.tag !== "Committed") return;
     const shopId = request.shopEntityId.toString();
     const questEntityId = request.tradeOrderEntityId.toString();
-    const guilds = shopToGuilds.get(shopId);
-    if (!guilds || guilds.size === 0) return;
+    const scopes = shopToScopes.get(shopId);
+    if (!scopes || scopes.size === 0) return;
 
     const subjectKey = `s:${ctx.event.callerIdentity.toHexString()}`;
 
-    for (const gid of guilds) {
+    for (const sk of scopes) {
+      const { discordGuildId, forgeChannelId } = parseScopeKey(sk);
       void repo
-        .recordQuestCompletion(gid, shopId, questEntityId, subjectKey)
+        .recordQuestCompletion(
+          discordGuildId,
+          forgeChannelId,
+          shopId,
+          questEntityId,
+          subjectKey
+        )
         .then((r) => {
           if (r === "ok") {
             log.debug(
               "recorded barter completion",
-              `guild=${gid}`,
+              `guild=${discordGuildId}`,
+              `forgeCh=${forgeChannelId}`,
               `order=${questEntityId}`
             );
           }

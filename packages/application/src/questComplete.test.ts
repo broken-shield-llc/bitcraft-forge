@@ -12,6 +12,7 @@ describe("executeQuestComplete", () => {
     const { content } = await executeQuestComplete(
       {
         discordGuildId: "g1",
+        forgeChannelId: "c1",
         discordUserId: "u1",
         rawBuildingId: "",
         rawQuestEntityId: "99",
@@ -32,6 +33,7 @@ describe("executeQuestComplete", () => {
     const { content } = await executeQuestComplete(
       {
         discordGuildId: "g1",
+        forgeChannelId: "c1",
         discordUserId: "u1",
         rawBuildingId: "abc",
         rawQuestEntityId: "def",
@@ -52,6 +54,7 @@ describe("executeQuestComplete", () => {
     const { content } = await executeQuestComplete(
       {
         discordGuildId: "g1",
+        forgeChannelId: "c1",
         discordUserId: "u1",
         rawBuildingId: "10",
         rawQuestEntityId: "20",
@@ -59,6 +62,7 @@ describe("executeQuestComplete", () => {
       deps
     );
     expect(content).toContain("not monitored");
+    expect(deps.repo.isBuildingMonitored).toHaveBeenCalledWith("g1", "c1", "10");
     expect(deps.repo.recordQuestCompletion).not.toHaveBeenCalled();
   });
 
@@ -73,6 +77,7 @@ describe("executeQuestComplete", () => {
     const { content } = await executeQuestComplete(
       {
         discordGuildId: "g1",
+        forgeChannelId: "c1",
         discordUserId: "999",
         rawBuildingId: "10",
         rawQuestEntityId: "20",
@@ -82,6 +87,7 @@ describe("executeQuestComplete", () => {
     expect(content).toContain("Quest completion logged");
     expect(recordQuestCompletion).toHaveBeenCalledWith(
       "g1",
+      "c1",
       "10",
       "20",
       "d:999"
@@ -98,6 +104,7 @@ describe("executeQuestComplete", () => {
     const { content } = await executeQuestComplete(
       {
         discordGuildId: "g1",
+        forgeChannelId: "c1",
         discordUserId: "u1",
         rawBuildingId: "10",
         rawQuestEntityId: "20",

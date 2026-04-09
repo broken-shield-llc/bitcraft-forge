@@ -68,7 +68,7 @@ describe("questBoardEditPayload", () => {
       ],
     } satisfies Extract<QuestBoardListResult, { kind: "list" }>;
 
-    const components = buildQuestBoardListComponents(list);
+    const components = buildQuestBoardListComponents(list, "900000000000000001");
     const payload = questBoardEditPayload(
       "**Quest board**\n\nPick below",
       "https://x.test/b.png",

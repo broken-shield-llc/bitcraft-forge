@@ -16,8 +16,8 @@ import {
 } from "./discord/forgeQuestBoardInteractions.js";
 import { handleForgeInteraction } from "./discord/forgeInteractions.js";
 import {
-  FORGE_QB_SELECT_CUSTOM_ID,
   isForgeQuestBoardComponent,
+  parseForgeQuestBoardCustomId,
 } from "./discord/questBoardDiscord.js";
 
 function isDiscordUnauthorized(e: unknown): boolean {
@@ -104,14 +104,18 @@ export async function startDiscordBot(
     // Handle message components before slash commands so a slow `/forge` path
     // cannot block this tick and let the 3s component token expire (10062).
     if (interaction.isStringSelectMenu()) {
-      if (interaction.customId === FORGE_QB_SELECT_CUSTOM_ID) {
-        await handleForgeQuestBoardSelect(interaction, ictx);
+      const p = parseForgeQuestBoardCustomId(interaction.customId);
+      if (p?.type === "shop") {
+        await handleForgeQuestBoardSelect(interaction, ictx, p.forgeChannelId);
       }
       return;
     }
     if (interaction.isButton()) {
       if (isForgeQuestBoardComponent(interaction.customId)) {
-        await handleForgeQuestBoardButton(interaction, ictx);
+        const p = parseForgeQuestBoardCustomId(interaction.customId);
+        if (p?.type === "back" || p?.type === "page") {
+          await handleForgeQuestBoardButton(interaction, ictx, p);
+        }
       }
       return;
     }

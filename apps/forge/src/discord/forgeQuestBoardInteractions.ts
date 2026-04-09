@@ -7,16 +7,15 @@ import {
 import {
   executeQuestBoardList,
   executeQuestBoardShopDetail,
+  FORGE_CHANNEL_NOT_ENABLED_MESSAGE,
 } from "@forge/application";
 import { isUnknownInteractionError } from "@forge/discord-forge";
 import type { ForgeInteractionContext } from "./forgeInteractions.js";
 import {
   buildQuestBoardDetailComponents,
   buildQuestBoardListComponents,
-  FORGE_QB_BACK_CUSTOM_ID,
-  FORGE_QB_PAGE_PREFIX,
-  FORGE_QB_SELECT_CUSTOM_ID,
-  parseForgeQbPageCustomId,
+  forgeQbShopCustomId,
+  type ParsedQuestBoardCustomId,
   questBoardEditPayload,
 } from "./questBoardDiscord.js";
 
@@ -55,11 +54,38 @@ async function editReplyQuestBoard(
   );
 }
 
+async function requireQuestBoardChannel(
+  interaction: StringSelectMenuInteraction | ButtonInteraction,
+  ctx: ForgeInteractionContext,
+  forgeChannelId: string
+): Promise<{ guildId: string } | null> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await editReplyPlain(interaction, "Use this in a server.", []);
+    return null;
+  }
+  if (interaction.channelId !== forgeChannelId) {
+    await editReplyPlain(
+      interaction,
+      "This quest board control belongs to another channel.",
+      []
+    );
+    return null;
+  }
+  const enabled = await ctx.repo.isForgeChannelEnabled(guildId, forgeChannelId);
+  if (!enabled) {
+    await editReplyPlain(interaction, FORGE_CHANNEL_NOT_ENABLED_MESSAGE, []);
+    return null;
+  }
+  return { guildId };
+}
+
 export async function handleForgeQuestBoardSelect(
   interaction: StringSelectMenuInteraction,
-  ctx: ForgeInteractionContext
+  ctx: ForgeInteractionContext,
+  forgeChannelId: string
 ): Promise<void> {
-  if (interaction.customId !== FORGE_QB_SELECT_CUSTOM_ID) return;
+  if (interaction.customId !== forgeQbShopCustomId(forgeChannelId)) return;
 
   try {
     await interaction.deferUpdate();
@@ -75,11 +101,8 @@ export async function handleForgeQuestBoardSelect(
   }
 
   try {
-    const guildId = interaction.guildId;
-    if (!guildId) {
-      await editReplyPlain(interaction, "Use this in a server.", []);
-      return;
-    }
+    const scope = await requireQuestBoardChannel(interaction, ctx, forgeChannelId);
+    if (!scope) return;
 
     const shopId = interaction.values[0];
     if (!shopId || shopId.length > 100) {
@@ -88,7 +111,8 @@ export async function handleForgeQuestBoardSelect(
     }
 
     const d = await executeQuestBoardShopDetail(
-      guildId,
+      scope.guildId,
+      forgeChannelId,
       shopId,
       questBoardDeps(ctx)
     );
@@ -100,7 +124,9 @@ export async function handleForgeQuestBoardSelect(
       interaction,
       d.content,
       ctx,
-      buildQuestBoardDetailComponents() as InteractionEditReplyOptions["components"]
+      buildQuestBoardDetailComponents(
+        forgeChannelId
+      ) as InteractionEditReplyOptions["components"]
     );
   } catch (e: unknown) {
     ctx.log.error("forge quest board select failed", e);
@@ -119,8 +145,10 @@ export async function handleForgeQuestBoardSelect(
 
 export async function handleForgeQuestBoardButton(
   interaction: ButtonInteraction,
-  ctx: ForgeInteractionContext
+  ctx: ForgeInteractionContext,
+  parsed: Extract<ParsedQuestBoardCustomId, { type: "back" | "page" }>
 ): Promise<void> {
+  const forgeChannelId = parsed.forgeChannelId;
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
@@ -130,99 +158,52 @@ export async function handleForgeQuestBoardButton(
     return;
   }
 
-  const { customId } = interaction;
+  const page = parsed.type === "page" ? parsed.page : 0;
 
-  if (customId === FORGE_QB_BACK_CUSTOM_ID) {
+  try {
     try {
-      try {
-        await interaction.deferUpdate();
-      } catch (e: unknown) {
-        if (isUnknownInteractionError(e)) {
-          ctx.log.debug(
-            "quest board back: interaction unknown before defer (expired or duplicate ack)"
-          );
-          return;
-        }
-        throw e;
-      }
-      const list = await executeQuestBoardList(
-        guildId,
-        questBoardDeps(ctx),
-        0
-      );
-      if (list.kind === "no_buildings" || list.kind === "no_offers") {
-        await editReplyQuestBoard(interaction, list.content, ctx, []);
+      await interaction.deferUpdate();
+    } catch (e: unknown) {
+      if (isUnknownInteractionError(e)) {
+        ctx.log.debug(
+          "quest board button: interaction unknown before defer (expired or duplicate ack)"
+        );
         return;
       }
-      await editReplyQuestBoard(
-        interaction,
-        list.content,
-        ctx,
-        buildQuestBoardListComponents(list) as InteractionEditReplyOptions["components"]
-      );
-    } catch (e: unknown) {
-      ctx.log.error("forge quest board back failed", e);
-      if (isUnknownInteractionError(e)) return;
-      const msg =
-        e instanceof Error ? e.message : "Unexpected error building the board.";
-      try {
-        await editReplyPlain(interaction, `Error: ${msg}`, []);
-      } catch (e2: unknown) {
-        if (!isUnknownInteractionError(e2)) {
-          ctx.log.warn("forge quest board back error reply failed", e2);
-        }
-      }
+      throw e;
     }
-    return;
-  }
+    const scope = await requireQuestBoardChannel(interaction, ctx, forgeChannelId);
+    if (!scope) return;
 
-  if (customId.startsWith(FORGE_QB_PAGE_PREFIX)) {
-    const page = parseForgeQbPageCustomId(customId);
-    if (page === null) {
-      await interaction.reply({
-        flags: MessageFlags.Ephemeral,
-        content: "Invalid board control.",
-      });
+    const list = await executeQuestBoardList(
+      scope.guildId,
+      forgeChannelId,
+      questBoardDeps(ctx),
+      page
+    );
+    if (list.kind === "no_buildings" || list.kind === "no_offers") {
+      await editReplyQuestBoard(interaction, list.content, ctx, []);
       return;
     }
+    await editReplyQuestBoard(
+      interaction,
+      list.content,
+      ctx,
+      buildQuestBoardListComponents(
+        list,
+        forgeChannelId
+      ) as InteractionEditReplyOptions["components"]
+    );
+  } catch (e: unknown) {
+    ctx.log.error("forge quest board button failed", e);
+    if (isUnknownInteractionError(e)) return;
+    const msg =
+      e instanceof Error ? e.message : "Unexpected error building the board.";
     try {
-      try {
-        await interaction.deferUpdate();
-      } catch (e: unknown) {
-        if (isUnknownInteractionError(e)) {
-          ctx.log.debug(
-            "quest board page: interaction unknown before defer (expired or duplicate ack)"
-          );
-          return;
-        }
-        throw e;
-      }
-      const list = await executeQuestBoardList(
-        guildId,
-        questBoardDeps(ctx),
-        page
-      );
-      if (list.kind === "no_buildings" || list.kind === "no_offers") {
-        await editReplyQuestBoard(interaction, list.content, ctx, []);
-        return;
-      }
-      await editReplyQuestBoard(
-        interaction,
-        list.content,
-        ctx,
-        buildQuestBoardListComponents(list) as InteractionEditReplyOptions["components"]
-      );
-    } catch (e: unknown) {
-      ctx.log.error("forge quest board page failed", e);
-      if (isUnknownInteractionError(e)) return;
-      const msg =
-        e instanceof Error ? e.message : "Unexpected error building the board.";
-      try {
-        await editReplyPlain(interaction, `Error: ${msg}`, []);
-      } catch (e2: unknown) {
-        if (!isUnknownInteractionError(e2)) {
-          ctx.log.warn("forge quest board page error reply failed", e2);
-        }
+      await editReplyPlain(interaction, `Error: ${msg}`, []);
+    } catch (e2: unknown) {
+      if (!isUnknownInteractionError(e2)) {
+        ctx.log.warn("forge quest board button error reply failed", e2);
       }
     }
   }

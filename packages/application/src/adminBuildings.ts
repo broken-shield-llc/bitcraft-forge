@@ -21,9 +21,13 @@ export type BuildingCommandsDeps = {
 
 export async function executeBuildingList(
   discordGuildId: string,
+  forgeChannelId: string,
   deps: BuildingCommandsDeps
 ): Promise<{ content: string }> {
-  const buildings = await deps.repo.listBuildings(discordGuildId);
+  const buildings = await deps.repo.listBuildings(
+    discordGuildId,
+    forgeChannelId
+  );
   if (buildings.length === 0) {
     return {
       content:
@@ -56,6 +60,7 @@ export type BuildingAddInput = {
 
 export async function executeBuildingAdd(
   discordGuildId: string,
+  forgeChannelId: string,
   input: BuildingAddInput,
   deps: BuildingCommandsDeps
 ): Promise<{ content: string }> {
@@ -97,6 +102,7 @@ export async function executeBuildingAdd(
   }
   const r = await deps.repo.addBuilding(
     discordGuildId,
+    forgeChannelId,
     buildingId,
     kind,
     claimRef
@@ -111,6 +117,7 @@ export async function executeBuildingAdd(
 
 export async function executeBuildingRemove(
   discordGuildId: string,
+  forgeChannelId: string,
   rawBuildingId: string,
   deps: BuildingCommandsDeps
 ): Promise<{ content: string }> {
@@ -129,7 +136,11 @@ export async function executeBuildingRemove(
   } catch {
     buildingLabel = formatBuildingDisplayLabel(buildingId, undefined);
   }
-  const removed = await deps.repo.removeBuilding(discordGuildId, buildingId);
+  const removed = await deps.repo.removeBuilding(
+    discordGuildId,
+    forgeChannelId,
+    buildingId
+  );
   return {
     content: removed
       ? `Stopped monitoring ${buildingLabel}.`

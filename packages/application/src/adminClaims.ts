@@ -8,9 +8,10 @@ export type ClaimCommandsDeps = {
 
 export async function executeClaimList(
   discordGuildId: string,
+  forgeChannelId: string,
   deps: ClaimCommandsDeps
 ): Promise<{ content: string }> {
-  const claims = await deps.repo.listClaims(discordGuildId);
+  const claims = await deps.repo.listClaims(discordGuildId, forgeChannelId);
   if (claims.length === 0) {
     return {
       content:
@@ -30,6 +31,7 @@ export async function executeClaimList(
 
 export async function executeClaimAdd(
   discordGuildId: string,
+  forgeChannelId: string,
   rawClaimId: string,
   deps: Pick<ClaimCommandsDeps, "repo">
 ): Promise<{ content: string }> {
@@ -40,7 +42,7 @@ export async function executeClaimAdd(
         "Invalid `claim_id` (empty or too long, max 128 characters).",
     };
   }
-  const r = await deps.repo.addClaim(discordGuildId, claimId);
+  const r = await deps.repo.addClaim(discordGuildId, forgeChannelId, claimId);
   return {
     content:
       r === "duplicate"
@@ -51,6 +53,7 @@ export async function executeClaimAdd(
 
 export async function executeClaimRemove(
   discordGuildId: string,
+  forgeChannelId: string,
   rawClaimId: string,
   deps: Pick<ClaimCommandsDeps, "repo">
 ): Promise<{ content: string }> {
@@ -61,7 +64,11 @@ export async function executeClaimRemove(
         "Invalid `claim_id` (empty or too long, max 128 characters).",
     };
   }
-  const removed = await deps.repo.removeClaim(discordGuildId, claimId);
+  const removed = await deps.repo.removeClaim(
+    discordGuildId,
+    forgeChannelId,
+    claimId
+  );
   return {
     content: removed
       ? `Stopped monitoring claim \`${claimId}\`.`

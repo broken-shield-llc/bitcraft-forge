@@ -43,7 +43,12 @@ describe("DrizzleGuildConfigRepository.addBuilding", () => {
     const repo = new DrizzleGuildConfigRepository(
       createMockDbForAddBuilding("unique_violation")
     );
-    const r = await repo.addBuilding("guild1", "building42", "stall");
+    const r = await repo.addBuilding(
+      "guild1",
+      "forge-ch",
+      "building42",
+      "stall"
+    );
     expect(r).toBe("duplicate");
   });
 
@@ -51,7 +56,12 @@ describe("DrizzleGuildConfigRepository.addBuilding", () => {
     const repo = new DrizzleGuildConfigRepository(
       createMockDbForAddBuilding("ok")
     );
-    const r = await repo.addBuilding("guild1", "building42", "counter");
+    const r = await repo.addBuilding(
+      "guild1",
+      "forge-ch",
+      "building42",
+      "counter"
+    );
     expect(r).toBe("ok");
   });
 });

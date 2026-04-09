@@ -9,6 +9,20 @@ export function buildForgeSlashCommand() {
         .setName("health")
         .setDescription("Build info and SpacetimeDB connection status")
     )
+    .addSubcommand((s) =>
+      s
+        .setName("enable")
+        .setDescription(
+          "Enable BitCraft Forge for this channel (separate config per channel)"
+        )
+    )
+    .addSubcommand((s) =>
+      s
+        .setName("disable")
+        .setDescription(
+          "Disable BitCraft Forge for this channel and remove its monitors / leaderboard data"
+        )
+    )
     .addSubcommandGroup((g) =>
       g
         .setName("quest")
@@ -24,7 +38,7 @@ export function buildForgeSlashCommand() {
           s
             .setName("leaderboard")
             .setDescription(
-              "Top members by logged quest completions in this server"
+              "Top members by logged quest completions in this channel"
             )
         )
         .addSubcommand((s) =>
@@ -52,7 +66,9 @@ export function buildForgeSlashCommand() {
     .addSubcommandGroup((g) =>
       g
         .setName("channel")
-        .setDescription("Where FORGE posts barter announcements")
+        .setDescription(
+          "Where FORGE posts barter announcements for this channel’s scope"
+        )
         .addSubcommand((s) =>
           s
             .setName("set")
@@ -72,7 +88,7 @@ export function buildForgeSlashCommand() {
     .addSubcommandGroup((g) =>
       g
         .setName("claim")
-        .setDescription("Monitor BitCraft claims in this Discord server")
+        .setDescription("Monitor BitCraft claims in this channel’s Forge scope")
         .addSubcommand((s) =>
           s
             .setName("add")
@@ -96,14 +112,16 @@ export function buildForgeSlashCommand() {
             )
         )
         .addSubcommand((s) =>
-          s.setName("list").setDescription("List monitored claims for this server")
+          s
+            .setName("list")
+            .setDescription("List monitored claims for this channel’s Forge scope")
         )
     )
     .addSubcommandGroup((g) =>
       g
         .setName("building")
         .setDescription(
-          "Monitor Barter Stalls or Barter Counters in this Discord server"
+          "Monitor Barter Stalls or Barter Counters in this channel’s Forge scope"
         )
         .addSubcommand((s) =>
           s
@@ -138,7 +156,9 @@ export function buildForgeSlashCommand() {
         .addSubcommand((s) =>
           s
             .setName("list")
-            .setDescription("List monitored buildings for this server")
+            .setDescription(
+              "List monitored buildings for this channel’s Forge scope"
+            )
         )
     );
 }

@@ -35,10 +35,10 @@ describe("executeQuestBoardList", () => {
         snapshotForMonitoredBuildings: vi.fn().mockReturnValue([]),
       },
     };
-    const r = await executeQuestBoardList("g1", deps, 0);
+    const r = await executeQuestBoardList("g1", "c1", deps, 0);
     expect(r.kind).toBe("no_buildings");
     if (r.kind === "no_buildings") {
-      expect(r.content).toContain("No monitored buildings yet");
+      expect(r.content).toContain("No monitored buildings in this channel yet");
     }
     expect(deps.questOffers.snapshotForMonitoredBuildings).not.toHaveBeenCalled();
   });
@@ -60,7 +60,7 @@ describe("executeQuestBoardList", () => {
         snapshotForMonitoredBuildings: vi.fn().mockReturnValue([]),
       },
     };
-    const r = await executeQuestBoardList("g1", deps, 0);
+    const r = await executeQuestBoardList("g1", "c1", deps, 0);
     expect(r.kind).toBe("no_offers");
     if (r.kind === "no_offers") {
       expect(r.content).toContain("No quests in the live cache");
@@ -99,7 +99,7 @@ describe("executeQuestBoardList", () => {
         snapshotForMonitoredBuildings: vi.fn().mockReturnValue([offer]),
       },
     };
-    const r = await executeQuestBoardList("g1", deps, 0);
+    const r = await executeQuestBoardList("g1", "c1", deps, 0);
     expect(r.kind).toBe("list");
     if (r.kind === "list") {
       expect(r.content).toContain("**Quest board**");
@@ -143,7 +143,7 @@ describe("executeQuestBoardShopDetail", () => {
         snapshotForMonitoredBuildings: vi.fn().mockReturnValue([offer]),
       },
     };
-    const r = await executeQuestBoardShopDetail("g1", "10", deps);
+    const r = await executeQuestBoardShopDetail("g1", "c1", "10", deps);
     expect(r.kind).toBe("ok");
     if (r.kind === "ok") {
       expect(r.content).toContain("**Quest board**");
@@ -177,7 +177,7 @@ describe("executeQuestBoardShopDetail", () => {
         snapshotForMonitoredBuildings: vi.fn().mockReturnValue([offer]),
       },
     };
-    const r = await executeQuestBoardShopDetail("g1", "10", deps);
+    const r = await executeQuestBoardShopDetail("g1", "c1", "10", deps);
     expect(r.kind).toBe("ok");
     if (r.kind === "ok") {
       expect(r.content).toContain("**✦ LEGENDARY+ ✦**");

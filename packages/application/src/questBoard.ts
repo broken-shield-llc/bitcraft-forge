@@ -20,7 +20,7 @@ export const QUEST_BOARD_SHOPS_PER_PAGE = 25;
 const MAX_DISCORD_SELECT_VALUE_LEN = 100;
 
 const EMPTY_NO_BUILDINGS =
-  "No monitored buildings yet — add one with `/forge building add`, then wait for SpacetimeDB data.";
+  "No monitored buildings in this channel yet — run `/forge enable` if needed, then add one with `/forge building add`, and wait for SpacetimeDB data.";
 
 const EMPTY_WITH_BUILDINGS = [
   "No quests in the live cache for your monitored buildings.",
@@ -52,13 +52,17 @@ type PreparedOk = {
 
 async function prepareQuestBoard(
   discordGuildId: string,
+  forgeChannelId: string,
   deps: QuestBoardDeps
 ): Promise<
   | { kind: "no_buildings" }
   | { kind: "no_offers" }
   | ({ kind: "ok" } & PreparedOk)
 > {
-  const buildings = await deps.repo.listBuildings(discordGuildId);
+  const buildings = await deps.repo.listBuildings(
+    discordGuildId,
+    forgeChannelId
+  );
   if (buildings.length === 0) return { kind: "no_buildings" };
 
   const ids = new Set(buildings.map((b) => b.buildingId));
@@ -145,10 +149,11 @@ export type QuestBoardListResult =
  */
 export async function executeQuestBoardList(
   discordGuildId: string,
+  forgeChannelId: string,
   deps: QuestBoardDeps,
   page: number
 ): Promise<QuestBoardListResult> {
-  const p = await prepareQuestBoard(discordGuildId, deps);
+  const p = await prepareQuestBoard(discordGuildId, forgeChannelId, deps);
   if (p.kind === "no_buildings") {
     return { kind: "no_buildings", content: EMPTY_NO_BUILDINGS };
   }
@@ -261,10 +266,11 @@ export type QuestBoardShopDetailResult =
  */
 export async function executeQuestBoardShopDetail(
   discordGuildId: string,
+  forgeChannelId: string,
   shopEntityIdStr: string,
   deps: QuestBoardDeps
 ): Promise<QuestBoardShopDetailResult> {
-  const p = await prepareQuestBoard(discordGuildId, deps);
+  const p = await prepareQuestBoard(discordGuildId, forgeChannelId, deps);
   if (p.kind === "no_buildings") {
     return { kind: "not_found", content: EMPTY_NO_BUILDINGS };
   }

@@ -7,6 +7,7 @@ export type QuestCompleteDeps = {
 
 export type QuestCompleteInput = {
   discordGuildId: string;
+  forgeChannelId: string;
   discordUserId: string;
   rawBuildingId: string;
   rawQuestEntityId: string;
@@ -38,17 +39,19 @@ export async function executeQuestComplete(
   }
   const monitored = await deps.repo.isBuildingMonitored(
     input.discordGuildId,
+    input.forgeChannelId,
     buildingId
   );
   if (!monitored) {
     return {
       content:
-        "That `building_id` is not monitored for this server. Add it with `/forge building add` first.",
+        "That `building_id` is not monitored in this channel. Add it with `/forge building add` here first.",
     };
   }
   const subjectKey = `d:${input.discordUserId}`;
   const r = await deps.repo.recordQuestCompletion(
     input.discordGuildId,
+    input.forgeChannelId,
     buildingId,
     questEntityId,
     subjectKey

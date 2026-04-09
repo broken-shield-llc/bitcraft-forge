@@ -13,11 +13,16 @@ const EMPTY_LEADERBOARD =
  */
 export async function executeQuestLeaderboard(
   discordGuildId: string,
+  forgeChannelId: string,
   deps: QuestLeaderboardDeps,
   options?: { limit?: number }
 ): Promise<{ content: string }> {
   const limit = options?.limit ?? 10;
-  const rows = await deps.repo.questLeaderboard(discordGuildId, limit);
+  const rows = await deps.repo.questLeaderboard(
+    discordGuildId,
+    forgeChannelId,
+    limit
+  );
   if (rows.length === 0) {
     return { content: EMPTY_LEADERBOARD };
   }

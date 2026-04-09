@@ -14,26 +14,55 @@ const EMBED_DESC_MAX = 4096;
 /** Sidebar / embed strip; matches Discord’s dark theme. */
 const QUEST_BOARD_EMBED_COLOR = 0x2b2d31;
 
-export const FORGE_QB_SELECT_CUSTOM_ID = "forge_qb_shop";
-export const FORGE_QB_BACK_CUSTOM_ID = "forge_qb_back";
-export const FORGE_QB_PAGE_PREFIX = "forge_qb_page:";
+const QB_SEP = "|";
 
-export function forgeQbPageCustomId(page: number): string {
-  return `${FORGE_QB_PAGE_PREFIX}${page}`;
+export type ParsedQuestBoardCustomId =
+  | { type: "shop"; forgeChannelId: string }
+  | { type: "back"; forgeChannelId: string }
+  | { type: "page"; page: number; forgeChannelId: string };
+
+export function forgeQbShopCustomId(forgeChannelId: string): string {
+  return `forge_qb_shop${QB_SEP}${forgeChannelId}`;
 }
 
-export function parseForgeQbPageCustomId(customId: string): number | null {
-  if (!customId.startsWith(FORGE_QB_PAGE_PREFIX)) return null;
-  const n = Number(customId.slice(FORGE_QB_PAGE_PREFIX.length));
-  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : null;
+export function forgeQbBackCustomId(forgeChannelId: string): string {
+  return `forge_qb_back${QB_SEP}${forgeChannelId}`;
+}
+
+export function forgeQbPageCustomId(
+  page: number,
+  forgeChannelId: string
+): string {
+  return `forge_qb_page${QB_SEP}${page}${QB_SEP}${forgeChannelId}`;
+}
+
+export function parseForgeQuestBoardCustomId(
+  customId: string
+): ParsedQuestBoardCustomId | null {
+  if (!customId.startsWith("forge_qb_")) return null;
+  const parts = customId.split(QB_SEP);
+  if (parts.length < 2) return null;
+  const head = parts[0]!;
+  if (head === "forge_qb_shop" && parts.length === 2) {
+    return { type: "shop", forgeChannelId: parts[1]! };
+  }
+  if (head === "forge_qb_back" && parts.length === 2) {
+    return { type: "back", forgeChannelId: parts[1]! };
+  }
+  if (head === "forge_qb_page" && parts.length === 3) {
+    const page = Number(parts[1]);
+    if (!Number.isFinite(page) || page < 0) return null;
+    return {
+      type: "page",
+      page: Math.floor(page),
+      forgeChannelId: parts[2]!,
+    };
+  }
+  return null;
 }
 
 export function isForgeQuestBoardComponent(customId: string): boolean {
-  return (
-    customId === FORGE_QB_SELECT_CUSTOM_ID ||
-    customId === FORGE_QB_BACK_CUSTOM_ID ||
-    customId.startsWith(FORGE_QB_PAGE_PREFIX)
-  );
+  return parseForgeQuestBoardCustomId(customId) !== null;
 }
 
 /**
@@ -63,7 +92,7 @@ export function buildQuestBoardEmbeds(
 
   let body = stripQuestBoardTitleLine(fullContent);
   if (body.length > EMBED_DESC_MAX) {
-    body = body.slice(0, EMBED_DESC_MAX - 1) + "…";
+    body = body.slice(0, Math.max(0, EMBED_DESC_MAX - 1)) + "…";
   }
 
   const bannerEmbed = new EmbedBuilder()
@@ -96,11 +125,12 @@ export function questBoardEditPayload(
  * Summary view: shop picker (+ prev/next when paginated).
  */
 export function buildQuestBoardListComponents(
-  list: Extract<QuestBoardListResult, { kind: "list" }>
+  list: Extract<QuestBoardListResult, { kind: "list" }>,
+  forgeChannelId: string
 ): ActionRowBuilder[] {
   const rows: ActionRowBuilder[] = [];
   const select = new StringSelectMenuBuilder()
-    .setCustomId(FORGE_QB_SELECT_CUSTOM_ID)
+    .setCustomId(forgeQbShopCustomId(forgeChannelId))
     .setPlaceholder("Choose a shop…")
     .addOptions(
       list.shops.map((s) => ({
@@ -112,12 +142,12 @@ export function buildQuestBoardListComponents(
 
   if (list.totalPages > 1) {
     const prev = new ButtonBuilder()
-      .setCustomId(forgeQbPageCustomId(list.page - 1))
+      .setCustomId(forgeQbPageCustomId(list.page - 1, forgeChannelId))
       .setLabel("Previous")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(list.page <= 0);
     const next = new ButtonBuilder()
-      .setCustomId(forgeQbPageCustomId(list.page + 1))
+      .setCustomId(forgeQbPageCustomId(list.page + 1, forgeChannelId))
       .setLabel("Next")
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(list.page >= list.totalPages - 1);
@@ -130,9 +160,11 @@ export function buildQuestBoardListComponents(
 /**
  * Detail view: return to the summary list.
  */
-export function buildQuestBoardDetailComponents(): ActionRowBuilder[] {
+export function buildQuestBoardDetailComponents(
+  forgeChannelId: string
+): ActionRowBuilder[] {
   const back = new ButtonBuilder()
-    .setCustomId(FORGE_QB_BACK_CUSTOM_ID)
+    .setCustomId(forgeQbBackCustomId(forgeChannelId))
     .setLabel("Back to shop list")
     .setStyle(ButtonStyle.Primary);
   return [new ActionRowBuilder<ButtonBuilder>().addComponents(back)];

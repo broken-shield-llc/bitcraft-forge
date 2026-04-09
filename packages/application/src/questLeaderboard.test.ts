@@ -8,9 +8,9 @@ describe("executeQuestLeaderboard", () => {
         questLeaderboard: vi.fn().mockResolvedValue([]),
       },
     };
-    const { content } = await executeQuestLeaderboard("g1", deps);
+    const { content } = await executeQuestLeaderboard("g1", "c1", deps);
     expect(content).toContain("No quest completions logged yet");
-    expect(deps.repo.questLeaderboard).toHaveBeenCalledWith("g1", 10);
+    expect(deps.repo.questLeaderboard).toHaveBeenCalledWith("g1", "c1", 10);
   });
 
   it("formats rows with Discord mention for d: subjects", async () => {
@@ -22,7 +22,7 @@ describe("executeQuestLeaderboard", () => {
         ]),
       },
     };
-    const { content } = await executeQuestLeaderboard("g1", deps, {
+    const { content } = await executeQuestLeaderboard("g1", "c1", deps, {
       limit: 10,
     });
     expect(content).toContain("**Quest leaderboard**");
@@ -36,7 +36,7 @@ describe("executeQuestLeaderboard", () => {
         questLeaderboard: vi.fn().mockResolvedValue([]),
       },
     };
-    await executeQuestLeaderboard("g1", deps, { limit: 25 });
-    expect(deps.repo.questLeaderboard).toHaveBeenCalledWith("g1", 25);
+    await executeQuestLeaderboard("g1", "c1", deps, { limit: 25 });
+    expect(deps.repo.questLeaderboard).toHaveBeenCalledWith("g1", "c1", 25);
   });
 });

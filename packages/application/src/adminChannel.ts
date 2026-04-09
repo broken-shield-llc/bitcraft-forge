@@ -5,21 +5,27 @@ export type SetAnnouncementChannelDeps = {
 };
 
 /**
- * Persists announcement channel id (null = clear). Caller must validate channel type for non-null ids.
+ * Persists announcement channel for a forge-enabled scope (null = stop posting until set again).
+ * Caller must validate channel type for non-null ids.
  */
 export async function executeSetAnnouncementChannel(
   discordGuildId: string,
+  forgeChannelId: string,
   channelId: string | null,
   deps: SetAnnouncementChannelDeps
 ): Promise<{ content: string }> {
-  await deps.repo.setAnnouncementChannel(discordGuildId, channelId);
+  await deps.repo.setAnnouncementChannel(
+    discordGuildId,
+    forgeChannelId,
+    channelId
+  );
   if (channelId === null) {
     return {
       content:
-        "Cleared the announcement channel. Set one with `/forge channel set announcements:#channel`.",
+        "Cleared the announcements target for this channel’s Forge scope. Quest / barter embeds are paused until you set one with `/forge channel set announcements:#channel` here again.",
     };
   }
   return {
-    content: `Quest / barter updates will post in <#${channelId}>.`,
+    content: `Quest / barter updates for this Forge channel will post in <#${channelId}>.`,
   };
 }
