@@ -34,7 +34,7 @@ describe("executeBuildingAdd", () => {
     const { content } = await executeBuildingAdd(
       "g1",
       "c1",
-      { rawBuildingId: "", rawClaimId: null },
+      { rawBuildingId: "" },
       deps
     );
     expect(content).toContain("Invalid `building_id`");
@@ -49,7 +49,7 @@ describe("executeBuildingAdd", () => {
     const { content } = await executeBuildingAdd(
       "g1",
       "c1",
-      { rawBuildingId: "x".repeat(129), rawClaimId: null },
+      { rawBuildingId: "x".repeat(129) },
       deps
     );
     expect(content).toContain("Invalid `building_id`");
@@ -67,7 +67,7 @@ describe("executeBuildingAdd", () => {
     const { content } = await executeBuildingAdd(
       "g1",
       "c1",
-      { rawBuildingId: "99", rawClaimId: null },
+      { rawBuildingId: "99" },
       deps
     );
     expect(content).toContain("already monitored");
@@ -80,15 +80,4 @@ describe("executeBuildingAdd", () => {
     );
   });
 
-  it("rejects optional claim_id that is too long", async () => {
-    const deps = baseBuildingDeps();
-    const { content } = await executeBuildingAdd(
-      "g1",
-      "c1",
-      { rawBuildingId: "10", rawClaimId: "y".repeat(129) },
-      deps
-    );
-    expect(content).toContain("Invalid optional `claim_id`");
-    expect(deps.repo.addBuilding).not.toHaveBeenCalled();
-  });
 });

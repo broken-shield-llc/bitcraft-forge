@@ -41,27 +41,6 @@ export function buildForgeSlashCommand() {
               "Top members by logged quest completions in this channel"
             )
         )
-        .addSubcommand((s) =>
-          s
-            .setName("complete")
-            .setDescription(
-              "Optional: manually log a completion (normally recorded from in-game barter accepts)"
-            )
-            .addStringOption((o) =>
-              o
-                .setName("building_id")
-                .setDescription(
-                  "Monitored building entity id (same as /forge building add)"
-                )
-                .setRequired(true)
-            )
-            .addStringOption((o) =>
-              o
-                .setName("quest_entity_id")
-                .setDescription("Trade order entity id from the game / board")
-                .setRequired(true)
-            )
-        )
     )
     .addSubcommandGroup((g) =>
       g
@@ -134,12 +113,6 @@ export function buildForgeSlashCommand() {
                 .setName("building_id")
                 .setDescription("BitCraft building id")
                 .setRequired(true)
-            )
-            .addStringOption((o) =>
-              o
-                .setName("claim_id")
-                .setDescription("Optional claim id for your records")
-                .setRequired(false)
             )
         )
         .addSubcommand((s) =>

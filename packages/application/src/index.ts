@@ -37,11 +37,6 @@ export {
   type QuestBoardShopDetailResult,
 } from "./questBoard.js";
 export {
-  executeQuestComplete,
-  type QuestCompleteDeps,
-  type QuestCompleteInput,
-} from "./questComplete.js";
-export {
   executeQuestLeaderboard,
   type QuestLeaderboardDeps,
 } from "./questLeaderboard.js";

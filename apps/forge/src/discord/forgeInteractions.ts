@@ -16,7 +16,6 @@ import {
   executeForgeDisable,
   executeForgeEnable,
   executeQuestBoardList,
-  executeQuestComplete,
   executeQuestLeaderboard,
   executeSetAnnouncementChannel,
   FORGE_CHANNEL_NOT_ENABLED_MESSAGE,
@@ -226,23 +225,6 @@ export async function handleForgeInteraction(
         return;
       }
 
-      if (sub === "complete") {
-        const rawBuilding = interaction.options.getString("building_id", true);
-        const rawQuest = interaction.options.getString("quest_entity_id", true);
-        const { content } = await executeQuestComplete(
-          {
-            discordGuildId: guildId,
-            forgeChannelId,
-            discordUserId: interaction.user.id,
-            rawBuildingId: rawBuilding,
-            rawQuestEntityId: rawQuest,
-          },
-          { repo: ctx.repo }
-        );
-        await interaction.editReply({ content });
-        return;
-      }
-
       await interaction.editReply({
         content: "Unknown `/forge quest` subcommand.",
       });
@@ -359,14 +341,10 @@ export async function handleForgeInteraction(
 
       if (sub === "add") {
         const rawBuilding = interaction.options.getString("building_id", true);
-        const rawOptClaim = interaction.options.getString("claim_id");
         const { content } = await executeBuildingAdd(
           guildId,
           forgeChannelId,
-          {
-            rawBuildingId: rawBuilding,
-            rawClaimId: rawOptClaim,
-          },
+          { rawBuildingId: rawBuilding },
           buildingDeps(ctx)
         );
         await interaction.editReply({ content });

@@ -55,7 +55,6 @@ export async function executeBuildingList(
 
 export type BuildingAddInput = {
   rawBuildingId: string;
-  rawClaimId: string | null;
 };
 
 export async function executeBuildingAdd(
@@ -71,18 +70,6 @@ export async function executeBuildingAdd(
         "Invalid `building_id` (empty or too long, max 128 characters).",
     };
   }
-
-  const rawOptClaim = input.rawClaimId;
-  const optClaim =
-    rawOptClaim === null ? undefined : normalizeScopedId(rawOptClaim);
-  if (rawOptClaim !== null && rawOptClaim.trim() !== "" && !optClaim) {
-    return {
-      content:
-        "Invalid optional `claim_id` (too long, max 128 characters).",
-    };
-  }
-
-  const claimRef = optClaim ?? undefined;
 
   const kind =
     await deps.entityCacheRepo.inferBuildingKindFromCachedEntity(buildingId);
@@ -105,13 +92,13 @@ export async function executeBuildingAdd(
     forgeChannelId,
     buildingId,
     kind,
-    claimRef
+    undefined
   );
   return {
     content:
       r === "duplicate"
         ? `Building ${buildingLabel} is already monitored.`
-        : `Now monitoring ${buildingLabel} as **${formatBuildingKind(kind)}**${claimRef ? ` (claim \`${claimRef}\`)` : ""}.`,
+        : `Now monitoring ${buildingLabel} as **${formatBuildingKind(kind)}**.`,
   };
 }
 

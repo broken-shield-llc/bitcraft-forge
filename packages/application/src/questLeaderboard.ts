@@ -10,7 +10,7 @@ export type QuestLeaderboardDeps = {
 };
 
 const EMPTY_LEADERBOARD =
-  "No quest completions logged yet. Completing a barter at a **monitored** building records a completion automatically; `/forge quest complete` is optional.";
+  "No quest completions logged yet. Completing a barter at a **monitored** building records a completion automatically.";
 
 async function resolveStdbIdentityDisplayNames(
   entityCacheRepo: Pick<
