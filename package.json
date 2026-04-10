@@ -22,6 +22,10 @@
     "typescript-eslint": "^8.58.1"
   },
   "pnpm": {
+    "overrides": {
+      "vite": "^6.4.2",
+      "esbuild": "^0.25.0"
+    },
     "patchedDependencies": {
       "@clockworklabs/spacetimedb-sdk@1.3.3": "patches/@clockworklabs__spacetimedb-sdk@1.3.3.patch"
     }
