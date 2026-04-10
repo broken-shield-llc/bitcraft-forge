@@ -8,18 +8,15 @@ export type ForgeConfig = {
   databaseUrl: string;
   pocEventLogPath: string | undefined;
   logLevel: "debug" | "info" | "warn" | "error";
-  announcementDebounceMs: number;
+  /** Coalesce quest/barter Discord embed posts per logical key (`FORGE_QUEST_DISCORD_DEBOUNCE_MS`). */
+  questDiscordDebounceMs: number;
   /**
-   * When false, skip Discord announcements for `trade_order_state` **updates** (owner edits / stock changes).
-   * **New** listings still announce. Quest **completion** announcements still post when a barter accept commits.
+   * After a barter completion, suppress matching **update** embeds for this long (per scope + quest key).
+   * Should exceed {@link ForgeConfig.questDiscordDebounceMs} so debounced updates are dropped.
    */
-  questAnnouncementTradeUpdates: boolean;
-  /**
-   * After a committed barter accept, suppress matching **update** announcements for this long (per scope + quest key).
-   * Should exceed {@link ForgeConfig.announcementDebounceMs} so debounced updates are dropped.
-   */
-  questCompletionSuppressUpdatesMs: number;
-  questAnnounceGraceMs: number;
+  questSuppressUpdateAfterCompleteMs: number;
+  /** No quest Discord embeds until this long after STDB quest subscriptions finish initial sync (`FORGE_QUEST_ANNOUNCE_AFTER_STDB_SYNC_MS`). */
+  questAnnounceAfterStdbSyncMs: number;
   questRarityHighThreshold: number;
   stdbCacheTtlMs: number;
   questBoardBannerUrl: string | undefined;
@@ -83,71 +80,49 @@ export function loadForgeConfig(
 
   const poc = f.FORGE_POC_EVENT_LOG?.trim();
 
-  const debounceRaw = f.FORGE_ANNOUNCEMENT_DEBOUNCE_MS?.trim();
-  let announcementDebounceMs = 4000;
+  const debounceRaw = f.FORGE_QUEST_DISCORD_DEBOUNCE_MS?.trim();
+  let questDiscordDebounceMs = 4000;
   if (debounceRaw !== undefined && debounceRaw !== "") {
     const n = Number(debounceRaw);
     if (!Number.isFinite(n) || n < 0 || n > 600_000) {
       errors.push({
-        key: "FORGE_ANNOUNCEMENT_DEBOUNCE_MS",
+        key: "FORGE_QUEST_DISCORD_DEBOUNCE_MS",
         message:
-          "FORGE_ANNOUNCEMENT_DEBOUNCE_MS must be a number between 0 and 600000",
+          "FORGE_QUEST_DISCORD_DEBOUNCE_MS must be a number between 0 and 600000",
       });
     } else {
-      announcementDebounceMs = Math.floor(n);
+      questDiscordDebounceMs = Math.floor(n);
     }
   }
 
-  const tradeUpdatesRaw = (
-    f.FORGE_QUEST_ANNOUNCE_TRADE_UPDATES ?? ""
-  ).trim().toLowerCase();
-  let questAnnouncementTradeUpdates = true;
-  if (
-    tradeUpdatesRaw === "0" ||
-    tradeUpdatesRaw === "false" ||
-    tradeUpdatesRaw === "no"
-  ) {
-    questAnnouncementTradeUpdates = false;
-  } else if (
-    tradeUpdatesRaw !== "" &&
-    tradeUpdatesRaw !== "1" &&
-    tradeUpdatesRaw !== "true" &&
-    tradeUpdatesRaw !== "yes"
-  ) {
-    errors.push({
-      key: "FORGE_QUEST_ANNOUNCE_TRADE_UPDATES",
-      message:
-        "FORGE_QUEST_ANNOUNCE_TRADE_UPDATES must be 0/false/no or 1/true/yes (empty = true)",
-    });
-  }
-
-  let questCompletionSuppressUpdatesMs = announcementDebounceMs + 3000;
-  const suppressRaw = f.FORGE_QUEST_COMPLETION_SUPPRESS_UPDATE_MS?.trim();
+  let questSuppressUpdateAfterCompleteMs = questDiscordDebounceMs + 3000;
+  const suppressRaw =
+    f.FORGE_QUEST_SUPPRESS_UPDATE_AFTER_COMPLETE_MS?.trim();
   if (suppressRaw !== undefined && suppressRaw !== "") {
     const n = Number(suppressRaw);
     if (!Number.isFinite(n) || n < 2000 || n > 120_000) {
       errors.push({
-        key: "FORGE_QUEST_COMPLETION_SUPPRESS_UPDATE_MS",
+        key: "FORGE_QUEST_SUPPRESS_UPDATE_AFTER_COMPLETE_MS",
         message:
-          "FORGE_QUEST_COMPLETION_SUPPRESS_UPDATE_MS must be between 2000 and 120000",
+          "FORGE_QUEST_SUPPRESS_UPDATE_AFTER_COMPLETE_MS must be between 2000 and 120000",
       });
     } else {
-      questCompletionSuppressUpdatesMs = Math.floor(n);
+      questSuppressUpdateAfterCompleteMs = Math.floor(n);
     }
   }
 
-  const graceRaw = f.FORGE_QUEST_ANNOUNCE_GRACE_MS?.trim();
-  let questAnnounceGraceMs = 4000;
-  if (graceRaw !== undefined && graceRaw !== "") {
-    const n = Number(graceRaw);
+  const syncQuietRaw = f.FORGE_QUEST_ANNOUNCE_AFTER_STDB_SYNC_MS?.trim();
+  let questAnnounceAfterStdbSyncMs = 4000;
+  if (syncQuietRaw !== undefined && syncQuietRaw !== "") {
+    const n = Number(syncQuietRaw);
     if (!Number.isFinite(n) || n < 0 || n > 120_000) {
       errors.push({
-        key: "FORGE_QUEST_ANNOUNCE_GRACE_MS",
+        key: "FORGE_QUEST_ANNOUNCE_AFTER_STDB_SYNC_MS",
         message:
-          "FORGE_QUEST_ANNOUNCE_GRACE_MS must be a number between 0 and 120000",
+          "FORGE_QUEST_ANNOUNCE_AFTER_STDB_SYNC_MS must be a number between 0 and 120000",
       });
     } else {
-      questAnnounceGraceMs = Math.floor(n);
+      questAnnounceAfterStdbSyncMs = Math.floor(n);
     }
   }
 
@@ -198,10 +173,9 @@ export function loadForgeConfig(
       databaseUrl: databaseUrl!,
       pocEventLogPath: poc || undefined,
       logLevel,
-      announcementDebounceMs,
-      questAnnouncementTradeUpdates,
-      questCompletionSuppressUpdatesMs,
-      questAnnounceGraceMs,
+      questDiscordDebounceMs,
+      questSuppressUpdateAfterCompleteMs,
+      questAnnounceAfterStdbSyncMs,
       questRarityHighThreshold,
       stdbCacheTtlMs,
       questBoardBannerUrl,

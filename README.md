@@ -4,6 +4,10 @@
 
 The bot does **not** invoke SpacetimeDB reducers; it only subscribes to tables and listens for committed game events.
 
+**Disclaimer:** FORGE is independent, community-maintained software. It is **not** affiliated with, endorsed by, or supported by Clockwork Labs, BitCraft, Discord, or SpacetimeDB.
+
+Licensed under the [MIT License](LICENSE). See [SECURITY.md](SECURITY.md) for how to report security issues responsibly.
+
 ## Features
 
 - **Per-channel scope** — Each Discord text channel can be enabled independently (`/forge enable`), with its own monitors, announcement target, and leaderboard data.
@@ -14,7 +18,7 @@ The bot does **not** invoke SpacetimeDB reducers; it only subscribes to tables a
 
 ## SpacetimeDB usage
 
-Connection is configured with `FORGE_BITCRAFT_WS_URI`, `FORGE_BITCRAFT_MODULE`, and a BitCraft session `**FORGE_BITCRAFT_JWT`** (see the [BitCraft community intro](https://bitcraft.trinit.is/docs/intro)). Generated client code comes from the community [BitCraft_Bindings](https://github.com/BitCraftToolBox/BitCraft_Bindings) (`ts-region` branch), vendored under `apps/forge/vendor/` during install.
+Connection is configured with `FORGE_BITCRAFT_WS_URI`, `FORGE_BITCRAFT_MODULE`, and a BitCraft session JWT (`FORGE_BITCRAFT_JWT`) (see the [BitCraft community intro](https://bitcraft.trinit.is/docs/intro)). Generated client code comes from the community [BitCraft_Bindings](https://github.com/BitCraftToolBox/BitCraft_Bindings) (`ts-region` branch), vendored under `apps/forge/vendor/` during install.
 
 ### Table subscriptions (read-only)
 
@@ -37,7 +41,7 @@ These SQL subscriptions keep quest projection and entity metadata in sync:
 
 ### Game events
 
-Committed `**barter_stall_order_accept**` callbacks are used to log quest completions when the shop entity matches a **monitored building** for that Discord scope.
+Committed `barter_stall_order_accept` callbacks are used to log quest completions when the shop entity matches a **monitored building** for that Discord scope.
 
 ### PostgreSQL cache
 
@@ -47,7 +51,7 @@ Rows from the entity tables above are upserted into local cache tables (see `pac
 
 Commands are registered when the bot starts: **guild** commands if `FORGE_DISCORD_GUILD_ID` is set, otherwise **global** commands (Discord can take up to about an hour to propagate global commands).
 
-Unless noted, use commands in a **server text channel**. `**Manage Server`** is Discord’s permission name for the API’s “manage guild” check.
+Unless noted, use commands in a **server text channel**. **Manage Server** is Discord’s permission name for the API’s “manage guild” check.
 
 
 | Command                    | Description                                                                  | Permission                       |

@@ -22,6 +22,9 @@ describe("loadForgeConfig", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.config.bitcraftModule).toBe("bitcraft-1");
+    expect(r.config.questSuppressUpdateAfterCompleteMs).toBe(
+      r.config.questDiscordDebounceMs + 3000
+    );
   });
 
   it("rejects bad FORGE_LOG_LEVEL", () => {
@@ -37,33 +40,4 @@ describe("loadForgeConfig", () => {
     expect(r.ok).toBe(false);
   });
 
-  const minimalEnv = {
-    FORGE_DISCORD_TOKEN: "x",
-    FORGE_DISCORD_APPLICATION_ID: "1",
-    FORGE_BITCRAFT_WS_URI: "wss://x",
-    FORGE_BITCRAFT_MODULE: "m",
-    FORGE_BITCRAFT_JWT: "j",
-    FORGE_DATABASE_URL: "postgresql://u:p@localhost:5432/x",
-  };
-
-  it("sets questAnnouncementTradeUpdates false when FORGE_QUEST_ANNOUNCE_TRADE_UPDATES=0", () => {
-    const r = loadForgeConfig({
-      ...minimalEnv,
-      FORGE_QUEST_ANNOUNCE_TRADE_UPDATES: "0",
-    });
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.config.questAnnouncementTradeUpdates).toBe(false);
-    expect(r.config.questCompletionSuppressUpdatesMs).toBeGreaterThanOrEqual(
-      r.config.announcementDebounceMs
-    );
-  });
-
-  it("rejects invalid FORGE_QUEST_ANNOUNCE_TRADE_UPDATES", () => {
-    const r = loadForgeConfig({
-      ...minimalEnv,
-      FORGE_QUEST_ANNOUNCE_TRADE_UPDATES: "maybe",
-    });
-    expect(r.ok).toBe(false);
-  });
 });

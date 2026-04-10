@@ -99,7 +99,7 @@ export function wireQuestSubscriptions(
   /** Monotonic gate: no Discord announces until after subscription hydration + grace. */
   let announceNotBefore = 0;
 
-  const debouncer = createKeyedDebouncer(config.announcementDebounceMs);
+  const debouncer = createKeyedDebouncer(config.questDiscordDebounceMs);
 
   /** Scope key + quest key; used to suppress stale "Quest Updated" after a barter completion. */
   const QUEST_SUPPRESS_SEP = "\x1f";
@@ -136,13 +136,6 @@ export function wireQuestSubscriptions(
   ): Promise<void> => {
     const snap = mapTradeOrderToSnapshot(row);
     if (kind === "update") {
-      if (!config.questAnnouncementTradeUpdates) {
-        log.debug(
-          "quest update announce skipped (FORGE_QUEST_ANNOUNCE_TRADE_UPDATES off)",
-          `quest=${snap.questKey}`
-        );
-        return;
-      }
       const suppressUntil = suppressQuestUpdateUntil.get(
         questSuppressKey(scopeSk, snap.questKey)
       );
@@ -494,7 +487,6 @@ export function wireQuestSubscriptions(
     questCache.upsert(snap);
     if (!dataReady) return;
     if (!canAnnounceLive()) return;
-    if (!config.questAnnouncementTradeUpdates) return;
     dispatchQuestAnnounce(row, "update");
   };
 
@@ -548,7 +540,7 @@ export function wireQuestSubscriptions(
     } catch (e: unknown) {
       log.warn("quest projection initial sync failed", e);
     }
-    announceNotBefore = Date.now() + config.questAnnounceGraceMs;
+    announceNotBefore = Date.now() + config.questAnnounceAfterStdbSyncMs;
     dataReady = true;
     log.info(
       "Quest subscriptions ready",
@@ -579,7 +571,8 @@ export function wireQuestSubscriptions(
       request.tradeOrderEntityId
     );
     const callerHex = ctx.event.callerIdentity.toHexString();
-    const suppressUntil = Date.now() + config.questCompletionSuppressUpdatesMs;
+    const suppressUntil =
+      Date.now() + config.questSuppressUpdateAfterCompleteMs;
     for (const sk of scopes) {
       suppressQuestUpdateUntil.set(questSuppressKey(sk, questKey), suppressUntil);
     }
