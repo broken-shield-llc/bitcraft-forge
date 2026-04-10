@@ -2,6 +2,8 @@ import type { GuildConfigRepository } from "@forge/repos";
 
 export type SetAnnouncementChannelDeps = {
   repo: Pick<GuildConfigRepository, "setAnnouncementChannel">;
+  /** Slash root (e.g. `forge`). Defaults to `forge`. */
+  discordCommandName?: string;
 };
 
 /**
@@ -14,6 +16,7 @@ export async function executeSetAnnouncementChannel(
   channelId: string | null,
   deps: SetAnnouncementChannelDeps
 ): Promise<{ content: string }> {
+  const cmd = deps.discordCommandName ?? "forge";
   await deps.repo.setAnnouncementChannel(
     discordGuildId,
     forgeChannelId,
@@ -21,8 +24,7 @@ export async function executeSetAnnouncementChannel(
   );
   if (channelId === null) {
     return {
-      content:
-        "Cleared the announcements target for this channel’s Forge scope. Quest / barter embeds are paused until you set one with `/forge channel set announcements:#channel` here again.",
+      content: `Cleared the announcements target for this channel’s Forge scope. Quest / barter embeds are paused until you set one with \`/${cmd} channel set announcements:#channel\` here again.`,
     };
   }
   return {

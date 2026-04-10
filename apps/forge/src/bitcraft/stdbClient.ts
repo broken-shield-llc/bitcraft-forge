@@ -3,7 +3,6 @@ import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
 import type { Client } from "discord.js";
-import { appendPocEvent } from "./pocEventLog.js";
 import type { QuestOfferCache } from "./questOfferCache.js";
 import { wireStdbEntityCache } from "./wireStdbEntityCache.js";
 import { wireQuestSubscriptions } from "./wireQuestSubscriptions.js";
@@ -116,14 +115,9 @@ export function startStdb(
           } catch {
             void 0;
           }
-          appendPocEvent(config.pocEventLogPath, {
-            kind: "subscription_applied",
-            table: "trade_order_state",
-            count: tradeOrderRows,
-          });
           log.info(
             "Quest projection subscriptions applied",
-            `trade_order_state rows: ${tradeOrderRows}`
+            `trade_order_state rows=${tradeOrderRows} quest_projection_ready=true`
           );
         },
       });

@@ -16,15 +16,18 @@ const MAX_BOARD_CHARS = 1950;
 export const QUEST_BOARD_SHOPS_PER_PAGE = 25;
 const MAX_DISCORD_SELECT_VALUE_LEN = 100;
 
-const EMPTY_NO_BUILDINGS =
-  "No monitored buildings in this channel yet — run `/forge enable` if needed, then add one with `/forge building add`, and wait for SpacetimeDB data.";
+function emptyNoBuildings(commandName: string): string {
+  return `No monitored buildings in this channel yet — run \`/${commandName} enable\` if needed, then add one with \`/${commandName} building add\`, and wait for SpacetimeDB data.`;
+}
 
-const EMPTY_WITH_BUILDINGS = [
-  "No quests in the live cache for your monitored buildings.",
-  "",
-  "The board only lists orders whose **shop** id matches a **monitored building id** (same BitCraft entity id). If you picked the wrong building, or there are no active trade orders for those stalls, the list stays empty.",
-  "If the bot just connected, wait a few seconds and try again. `/forge health` shows whether `trade_order_state` is syncing (row count).",
-].join("\n");
+function emptyWithBuildings(commandName: string): string {
+  return [
+    "No quests in the live cache for your monitored buildings.",
+    "",
+    "The board only lists orders whose **shop** id matches a **monitored building id** (same BitCraft entity id). If you picked the wrong building, or there are no active trade orders for those stalls, the list stays empty.",
+    `If the bot just connected, wait a few seconds and try again. \`/${commandName} health\` shows whether \`trade_order_state\` is syncing (row count).`,
+  ].join("\n");
+}
 
 export type QuestBoardDeps = {
   repo: Pick<GuildConfigRepository, "listBuildings">;
@@ -36,6 +39,8 @@ export type QuestBoardDeps = {
     | "getBuildingNicknames"
   >;
   questOffers: QuestOfferReadPort;
+  /** Slash root (e.g. `forge`). Defaults to `forge`. */
+  discordCommandName?: string;
 };
 
 type PreparedOk = {
@@ -147,12 +152,13 @@ export async function executeQuestBoardList(
   deps: QuestBoardDeps,
   page: number
 ): Promise<QuestBoardListResult> {
+  const cmd = deps.discordCommandName ?? "forge";
   const p = await prepareQuestBoard(discordGuildId, forgeChannelId, deps);
   if (p.kind === "no_buildings") {
-    return { kind: "no_buildings", content: EMPTY_NO_BUILDINGS };
+    return { kind: "no_buildings", content: emptyNoBuildings(cmd) };
   }
   if (p.kind === "no_offers") {
-    return { kind: "no_offers", content: EMPTY_WITH_BUILDINGS };
+    return { kind: "no_offers", content: emptyWithBuildings(cmd) };
   }
 
   const { shopOrder, byShop, shopNicks, totalOffers } = p;
@@ -166,7 +172,7 @@ export async function executeQuestBoardList(
       content:
         skippedLongIds > 0
           ? "Every visible shop has a building id longer than Discord allows for menus (100 characters). The quest board can’t list them here."
-          : EMPTY_WITH_BUILDINGS,
+          : emptyWithBuildings(cmd),
     };
   }
 
@@ -261,12 +267,13 @@ export async function executeQuestBoardShopDetail(
   shopEntityIdStr: string,
   deps: QuestBoardDeps
 ): Promise<QuestBoardShopDetailResult> {
+  const cmd = deps.discordCommandName ?? "forge";
   const p = await prepareQuestBoard(discordGuildId, forgeChannelId, deps);
   if (p.kind === "no_buildings") {
-    return { kind: "not_found", content: EMPTY_NO_BUILDINGS };
+    return { kind: "not_found", content: emptyNoBuildings(cmd) };
   }
   if (p.kind === "no_offers") {
-    return { kind: "not_found", content: EMPTY_WITH_BUILDINGS };
+    return { kind: "not_found", content: emptyWithBuildings(cmd) };
   }
 
   const shopOffers = p.byShop.get(shopEntityIdStr);

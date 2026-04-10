@@ -1,13 +1,19 @@
 import type { GuildConfigRepository } from "@forge/repos";
 
+export function forgeChannelNotEnabledMessage(commandName: string): string {
+  return `This channel is not enabled for BitCraft Forge features. Run \`/${commandName} enable\` in this channel first.`;
+}
+
 export const FORGE_CHANNEL_NOT_ENABLED_MESSAGE =
-  "This channel is not enabled for BitCraft Forge features. Run `/forge enable` in this channel first.";
+  forgeChannelNotEnabledMessage("forge");
 
 export type ForgeChannelEnableDeps = {
   repo: Pick<
     GuildConfigRepository,
     "enableForgeChannel" | "disableForgeChannel"
   >;
+  /** Slash root (e.g. `forge`). Defaults to `forge`. */
+  discordCommandName?: string;
 };
 
 export async function executeForgeEnable(
@@ -15,6 +21,7 @@ export async function executeForgeEnable(
   forgeChannelId: string,
   deps: ForgeChannelEnableDeps
 ): Promise<{ content: string }> {
+  const cmd = deps.discordCommandName ?? "forge";
   const r = await deps.repo.enableForgeChannel(discordGuildId, forgeChannelId);
   if (r === "duplicate") {
     return {
@@ -22,8 +29,7 @@ export async function executeForgeEnable(
     };
   }
   return {
-    content:
-      "BitCraft Forge is enabled for this channel. Configure monitors with `/forge claim` and `/forge building` here. Quest / barter announcements post here by default; use `/forge channel set` to target another channel.",
+    content: `BitCraft Forge is enabled for this channel. Configure monitors with \`/${cmd} claim\` and \`/${cmd} building\` here. Quest / barter announcements post here by default; use \`/${cmd} channel set\` to target another channel.`,
   };
 }
 
@@ -32,14 +38,14 @@ export async function executeForgeDisable(
   forgeChannelId: string,
   deps: ForgeChannelEnableDeps
 ): Promise<{ content: string }> {
+  const cmd = deps.discordCommandName ?? "forge";
   const removed = await deps.repo.disableForgeChannel(
     discordGuildId,
     forgeChannelId
   );
   if (!removed) {
     return {
-      content:
-        "This channel is not forge-enabled (nothing to disable). Use `/forge enable` first.",
+      content: `This channel is not forge-enabled (nothing to disable). Use \`/${cmd} enable\` first.`,
     };
   }
   return {

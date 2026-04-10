@@ -544,7 +544,7 @@ export function wireQuestSubscriptions(
     dataReady = true;
     log.info(
       "Quest subscriptions ready",
-      `traveler_desc=${travelerDescById.size} trade_orders=${connection.db.tradeOrderState.count()}`
+      `traveler_desc=${travelerDescById.size} trade_orders=${connection.db.tradeOrderState.count()} announce_after_ms=${config.questAnnounceAfterStdbSyncMs}`
     );
     onQuestProjectionReady?.();
   };

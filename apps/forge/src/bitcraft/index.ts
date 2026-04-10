@@ -1,4 +1,3 @@
-export { appendPocEvent } from "./pocEventLog.js";
 export { mapTradeOrderToSnapshot } from "./mapTradeOrderState.js";
 export { QuestOfferCache } from "./questOfferCache.js";
 export { getStdbConnectionSnapshot, startStdb } from "./stdbClient.js";

@@ -1,12 +1,15 @@
 export type ForgeConfig = {
   discordToken: string;
   discordApplicationId: string;
+  /**
+   * Root slash command name (e.g. `forge`, `forgedev`). Must be 1–32 chars: lowercase letters, digits, underscore, hyphen.
+   */
+  discordCommandName: string;
   discordGuildId: string | undefined;
   bitcraftWsUri: string;
   bitcraftModule: string;
   bitcraftJwt: string;
   databaseUrl: string;
-  pocEventLogPath: string | undefined;
   logLevel: "debug" | "info" | "warn" | "error";
   /** Coalesce quest/barter Discord embed posts per logical key (`FORGE_QUEST_DISCORD_DEBOUNCE_MS`). */
   questDiscordDebounceMs: number;
@@ -17,9 +20,13 @@ export type ForgeConfig = {
   questSuppressUpdateAfterCompleteMs: number;
   /** No quest Discord embeds until this long after STDB quest subscriptions finish initial sync (`FORGE_QUEST_ANNOUNCE_AFTER_STDB_SYNC_MS`). */
   questAnnounceAfterStdbSyncMs: number;
-  questRarityHighThreshold: number;
   stdbCacheTtlMs: number;
   questBoardBannerUrl: string | undefined;
+  /**
+   * When set, binds an HTTP server on this port for `GET /health` (liveness).
+   * Omit or leave unset to disable (`FORGE_HEALTH_PORT`).
+   */
+  healthListenPort: number | undefined;
 };
 
 export type ConfigError = { key: string; message: string };
@@ -56,12 +63,64 @@ export function loadForgeConfig(
   );
   const bitcraftModule = req("FORGE_BITCRAFT_MODULE", "BitCraft module name");
   const bitcraftJwt = req("FORGE_BITCRAFT_JWT", "BitCraft JWT");
-  const databaseUrl = req(
-    "FORGE_DATABASE_URL",
-    "Postgres connection URL (FORGE_DATABASE_URL)"
-  );
+
+  const databaseUrlDirect = (f.FORGE_DATABASE_URL ?? env.FORGE_DATABASE_URL)?.trim();
+  const dbHost = (f.FORGE_DATABASE_HOST ?? env.FORGE_DATABASE_HOST)?.trim();
+  const dbUser = (f.FORGE_DATABASE_USER ?? env.FORGE_DATABASE_USER)?.trim();
+  const dbPassword = (f.FORGE_DATABASE_PASSWORD ?? env.FORGE_DATABASE_PASSWORD)?.trim();
+  const dbName = (f.FORGE_DATABASE_NAME ?? env.FORGE_DATABASE_NAME)?.trim();
+  const dbPortRaw = (f.FORGE_DATABASE_PORT ?? env.FORGE_DATABASE_PORT)?.trim();
+  const dbSslMode = (f.FORGE_DATABASE_SSLMODE ?? env.FORGE_DATABASE_SSLMODE)?.trim();
+
+  let databaseUrl: string | undefined;
+  if (databaseUrlDirect) {
+    databaseUrl = databaseUrlDirect;
+  } else if (dbHost && dbUser && dbPassword && dbName) {
+    const port =
+      dbPortRaw && dbPortRaw !== ""
+        ? Number(dbPortRaw)
+        : 5432;
+    if (!Number.isFinite(port) || port < 1 || port > 65535) {
+      errors.push({
+        key: "FORGE_DATABASE_PORT",
+        message:
+          "FORGE_DATABASE_PORT must be a number between 1 and 65535 when using composite DB settings",
+      });
+    } else {
+      const encUser = encodeURIComponent(dbUser);
+      const encPass = encodeURIComponent(dbPassword);
+      const encName = encodeURIComponent(dbName);
+      const q =
+        dbSslMode && dbSslMode !== ""
+          ? `?sslmode=${encodeURIComponent(dbSslMode)}`
+          : "";
+      databaseUrl = `postgresql://${encUser}:${encPass}@${dbHost}:${Math.floor(port)}/${encName}${q}`;
+    }
+  } else if (dbHost || dbUser || dbPassword || dbName) {
+    errors.push({
+      key: "FORGE_DATABASE_URL",
+      message:
+        "Composite DB settings require all of: FORGE_DATABASE_HOST, FORGE_DATABASE_USER, FORGE_DATABASE_PASSWORD, FORGE_DATABASE_NAME (optional FORGE_DATABASE_PORT, FORGE_DATABASE_SSLMODE)",
+    });
+  } else {
+    errors.push({
+      key: "FORGE_DATABASE_URL",
+      message:
+        "Set FORGE_DATABASE_URL, or FORGE_DATABASE_HOST + FORGE_DATABASE_USER + FORGE_DATABASE_PASSWORD + FORGE_DATABASE_NAME (optional FORGE_DATABASE_PORT, FORGE_DATABASE_SSLMODE)",
+    });
+  }
 
   const guildRaw = f.FORGE_DISCORD_GUILD_ID?.trim();
+
+  const commandNameRaw = (f.FORGE_DISCORD_COMMAND_NAME ?? "forge").trim();
+  if (!/^[-a-z0-9_]{1,32}$/.test(commandNameRaw)) {
+    errors.push({
+      key: "FORGE_DISCORD_COMMAND_NAME",
+      message:
+        "FORGE_DISCORD_COMMAND_NAME must be 1–32 characters: lowercase letters, digits, underscore, or hyphen (default: forge)",
+    });
+  }
+
   const logRaw = (f.FORGE_LOG_LEVEL ?? "info").toLowerCase();
   let logLevel: ForgeConfig["logLevel"] = "info";
   if (
@@ -77,8 +136,6 @@ export function loadForgeConfig(
       message: "FORGE_LOG_LEVEL must be debug, info, warn, or error",
     });
   }
-
-  const poc = f.FORGE_POC_EVENT_LOG?.trim();
 
   const debounceRaw = f.FORGE_QUEST_DISCORD_DEBOUNCE_MS?.trim();
   let questDiscordDebounceMs = 4000;
@@ -126,21 +183,6 @@ export function loadForgeConfig(
     }
   }
 
-  const rarityRaw = f.FORGE_QUEST_RARITY_HIGH_THRESHOLD?.trim();
-  let questRarityHighThreshold = 100;
-  if (rarityRaw !== undefined && rarityRaw !== "") {
-    const n = Number(rarityRaw);
-    if (!Number.isFinite(n) || n < 1 || n > 1_000_000_000) {
-      errors.push({
-        key: "FORGE_QUEST_RARITY_HIGH_THRESHOLD",
-        message:
-          "FORGE_QUEST_RARITY_HIGH_THRESHOLD must be a number between 1 and 1000000000",
-      });
-    } else {
-      questRarityHighThreshold = Math.floor(n);
-    }
-  }
-
   const ttlRaw = f.FORGE_STDB_CACHE_TTL_MS?.trim();
   let stdbCacheTtlMs = 86_400_000;
   if (ttlRaw !== undefined && ttlRaw !== "") {
@@ -156,6 +198,21 @@ export function loadForgeConfig(
     }
   }
 
+  const healthRaw = f.FORGE_HEALTH_PORT?.trim();
+  let healthListenPort: number | undefined;
+  if (healthRaw !== undefined && healthRaw !== "") {
+    const n = Number(healthRaw);
+    if (!Number.isFinite(n) || n < 1 || n > 65535) {
+      errors.push({
+        key: "FORGE_HEALTH_PORT",
+        message:
+          "FORGE_HEALTH_PORT must be a number between 1 and 65535, or unset to disable the health HTTP server",
+      });
+    } else {
+      healthListenPort = Math.floor(n);
+    }
+  }
+
   if (errors.length) return { ok: false, errors };
 
   const questBoardBannerUrl =
@@ -166,19 +223,19 @@ export function loadForgeConfig(
     config: {
       discordToken: discordToken!,
       discordApplicationId: discordApplicationId!,
+      discordCommandName: commandNameRaw,
       discordGuildId: guildRaw || undefined,
       bitcraftWsUri: bitcraftWsUri!,
       bitcraftModule: bitcraftModule!,
       bitcraftJwt: bitcraftJwt!,
       databaseUrl: databaseUrl!,
-      pocEventLogPath: poc || undefined,
       logLevel,
       questDiscordDebounceMs,
       questSuppressUpdateAfterCompleteMs,
       questAnnounceAfterStdbSyncMs,
-      questRarityHighThreshold,
       stdbCacheTtlMs,
       questBoardBannerUrl,
+      healthListenPort,
     },
   };
 }

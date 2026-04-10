@@ -7,7 +7,7 @@ import {
 import {
   executeQuestBoardList,
   executeQuestBoardShopDetail,
-  FORGE_CHANNEL_NOT_ENABLED_MESSAGE,
+  forgeChannelNotEnabledMessage,
 } from "@forge/application";
 import { isUnknownInteractionError } from "@forge/discord-forge";
 import type { ForgeInteractionContext } from "./forgeInteractions.js";
@@ -24,6 +24,7 @@ function questBoardDeps(ctx: ForgeInteractionContext) {
     repo: ctx.repo,
     entityCacheRepo: ctx.entityCacheRepo,
     questOffers: ctx.questCache,
+    discordCommandName: ctx.config.discordCommandName,
   } as const;
 }
 
@@ -74,7 +75,11 @@ async function requireQuestBoardChannel(
   }
   const enabled = await ctx.repo.isForgeChannelEnabled(guildId, forgeChannelId);
   if (!enabled) {
-    await editReplyPlain(interaction, FORGE_CHANNEL_NOT_ENABLED_MESSAGE, []);
+    await editReplyPlain(
+      interaction,
+      forgeChannelNotEnabledMessage(ctx.config.discordCommandName),
+      []
+    );
     return null;
   }
   return { guildId };

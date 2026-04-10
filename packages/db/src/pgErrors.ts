@@ -11,3 +11,13 @@ export function isPgUniqueViolation(e: unknown): boolean {
   }
   return false;
 }
+
+export function isPgDuplicateRelation(e: unknown): boolean {
+  let cur: unknown = e;
+  while (cur !== null && cur !== undefined && typeof cur === "object") {
+    const o = cur as { code?: unknown; cause?: unknown };
+    if (o.code === "42P07") return true;
+    cur = o.cause;
+  }
+  return false;
+}

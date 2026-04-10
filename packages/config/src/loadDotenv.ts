@@ -23,6 +23,19 @@ function applyParsed(parsed: Record<string, string>): void {
   }
 }
 
+function isContainerizedProduction(env: NodeJS.ProcessEnv = process.env): boolean {
+  const isProd = env.NODE_ENV === "production";
+  const explicit = env.FORGE_CONTAINERIZED === "1";
+  const ecsMetadata =
+    typeof env.ECS_CONTAINER_METADATA_URI_V4 === "string" ||
+    typeof env.ECS_CONTAINER_METADATA_URI === "string";
+  const execEnv = env.AWS_EXECUTION_ENV;
+  const ecsExecution =
+    typeof execEnv === "string" && execEnv.startsWith("AWS_ECS");
+  const inContainer = explicit || ecsMetadata || ecsExecution;
+  return isProd && inContainer;
+}
+
 /** Walks up from this package and from `cwd` to find `.env`; strips UTF-8 BOM. */
 export function loadDotenv(): void {
   const fromFile = dirname(fileURLToPath(import.meta.url));
@@ -33,12 +46,14 @@ export function loadDotenv(): void {
     findEnvPath(fromCwd, 12);
 
   if (!path) {
-    console.error(
-      "[forge] No `.env` file found. Walked up from:\n" +
-        `  - ${fromFile}\n` +
-        `  - ${fromCwd}\n` +
-        "Put `.env` at the repo root or in `apps/forge/`. See `.env.example`."
-    );
+    if (!isContainerizedProduction()) {
+      console.error(
+        "[forge] No `.env` file found. Walked up from:\n" +
+          `  - ${fromFile}\n` +
+          `  - ${fromCwd}\n` +
+          "Put `.env` at the repo root or in `apps/forge/`. See `.env.example`."
+      );
+    }
     return;
   }
 

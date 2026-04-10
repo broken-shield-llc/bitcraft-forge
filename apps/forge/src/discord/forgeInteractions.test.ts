@@ -31,13 +31,26 @@ const zeroCaches = {
 
 function createHealthInteraction(): ChatInputCommandInteraction {
   const reply = vi.fn().mockResolvedValue(undefined);
+  const editReply = vi.fn().mockResolvedValue(undefined);
+  const state = { deferred: false, replied: false };
+  const deferReply = vi.fn().mockImplementation(async () => {
+    state.deferred = true;
+  });
   return {
     commandName: "forge",
+    get deferred() {
+      return state.deferred;
+    },
+    get replied() {
+      return state.replied;
+    },
     options: {
       getSubcommandGroup: vi.fn().mockReturnValue(null),
       getSubcommand: vi.fn().mockReturnValue("health"),
     },
     reply,
+    deferReply,
+    editReply,
   } as unknown as ChatInputCommandInteraction;
 }
 
@@ -45,7 +58,7 @@ function baseCtx(
   entityCacheRepo: EntityCacheRepository
 ): ForgeInteractionContext {
   return {
-    config: {} as ForgeConfig,
+    config: { discordCommandName: "forge" } as ForgeConfig,
     log: {
       warn: vi.fn(),
       error: vi.fn(),
@@ -66,7 +79,7 @@ describe("handleForgeInteraction /forge health", () => {
     });
   });
 
-  it("replies with full health body when cache counts succeed (no defer — health uses reply only)", async () => {
+  it("defers then editReplies with full health body when cache counts succeed", async () => {
     const getEntityCacheTableCounts = vi.fn().mockResolvedValue(zeroCaches);
     const interaction = createHealthInteraction();
     await handleForgeInteraction(
@@ -76,12 +89,16 @@ describe("handleForgeInteraction /forge health", () => {
 
     expect(stdbMocks.getStdbConnectionSnapshot).toHaveBeenCalled();
     expect(getEntityCacheTableCounts).toHaveBeenCalledTimes(1);
-    expect(interaction.reply).toHaveBeenCalledTimes(1);
-    expect(interaction.reply).toHaveBeenCalledWith({
+    expect(interaction.deferReply).toHaveBeenCalledTimes(1);
+    expect(interaction.deferReply).toHaveBeenCalledWith({
       flags: MessageFlags.Ephemeral,
+    });
+    expect(interaction.reply).not.toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalledTimes(1);
+    expect(interaction.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining("**FORGE**"),
     });
-    const payload = vi.mocked(interaction.reply).mock.calls[0][0] as {
+    const payload = vi.mocked(interaction.editReply).mock.calls[0][0] as {
       content: string;
     };
     expect(payload.content).toContain("SpacetimeDB connected: **true**");
@@ -104,7 +121,7 @@ describe("handleForgeInteraction /forge health", () => {
       "forge health cache counts failed",
       expect.any(Error)
     );
-    const payload = vi.mocked(interaction.reply).mock.calls[0][0] as {
+    const payload = vi.mocked(interaction.editReply).mock.calls[0][0] as {
       content: string;
     };
     expect(payload.content).toContain("SpacetimeDB connected: **true**");
@@ -122,7 +139,7 @@ describe("handleForgeInteraction /forge health", () => {
       interaction,
       baseCtx({ getEntityCacheTableCounts } as unknown as EntityCacheRepository)
     );
-    const payload = vi.mocked(interaction.reply).mock.calls[0][0] as {
+    const payload = vi.mocked(interaction.editReply).mock.calls[0][0] as {
       content: string;
     };
     expect(payload.content).toContain("SpacetimeDB connected: **false**");

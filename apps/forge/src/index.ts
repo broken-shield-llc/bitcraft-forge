@@ -8,6 +8,7 @@ import {
   DrizzleEntityCacheRepository,
   DrizzleGuildConfigRepository,
 } from "@forge/repos";
+import { startHealthHttpServer } from "./healthHttp.js";
 
 loadDotenv();
 
@@ -20,8 +21,13 @@ if (!loaded.ok) {
 
 const log = createLogger(loaded.config.logLevel);
 
+if (loaded.config.healthListenPort !== undefined) {
+  startHealthHttpServer(loaded.config.healthListenPort, log);
+}
+
 const pool = createPool(loaded.config.databaseUrl);
 await runMigrations(pool, log);
+
 const db = createDb(pool);
 const repo = new DrizzleGuildConfigRepository(db);
 const entityCacheRepo = new DrizzleEntityCacheRepository(db);
