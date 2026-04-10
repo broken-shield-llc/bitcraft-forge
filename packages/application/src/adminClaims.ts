@@ -4,10 +4,20 @@ import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos"
 export type ClaimCommandsDeps = {
   repo: Pick<GuildConfigRepository, "listClaims" | "addClaim" | "removeClaim">;
   entityCacheRepo: Pick<EntityCacheRepository, "getClaimName">;
+  /** Slash root (e.g. `forge`). Defaults to `forge`. */
+  discordCommandName?: string;
 };
 
 function formatClaimDisplayLabel(claimId: string, claimName?: string): string {
-  return claimName ? `${claimName} (\`${claimId}\`)` : `\`${claimId}\``;
+  return claimName
+    ? `**${claimName}** (\`${claimId}\`)`
+    : `\`${claimId}\``;
+}
+
+function formatClaimListLine(claimId: string, claimName: string | undefined): string {
+  const n = claimName?.trim();
+  if (n) return `* **${n}** (\`${claimId}\`)`;
+  return `* — (\`${claimId}\`)`;
 }
 
 export async function executeClaimList(
@@ -15,17 +25,17 @@ export async function executeClaimList(
   forgeChannelId: string,
   deps: ClaimCommandsDeps
 ): Promise<{ content: string }> {
+  const cmd = deps.discordCommandName ?? "forge";
   const claims = await deps.repo.listClaims(discordGuildId, forgeChannelId);
   if (claims.length === 0) {
     return {
-      content:
-        "No claims are being monitored yet. Use `/forge claim add`.",
+      content: `No claims are being monitored yet. Use \`/${cmd} claim add\`.`,
     };
   }
   const claimLines = await Promise.all(
     claims.map(async (c) => {
       const name = await deps.entityCacheRepo.getClaimName(c);
-      return name ? `• \`${c}\` — ${name}` : `• \`${c}\``;
+      return formatClaimListLine(c, name ?? undefined);
     })
   );
   return {

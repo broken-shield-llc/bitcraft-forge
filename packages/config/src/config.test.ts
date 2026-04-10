@@ -21,6 +21,7 @@ describe("loadForgeConfig", () => {
     });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
+    expect(r.config.discordCommandName).toBe("forge");
     expect(r.config.bitcraftModule).toBe("bitcraft-1");
     expect(r.config.questSuppressUpdateAfterCompleteMs).toBe(
       r.config.questDiscordDebounceMs + 3000
@@ -54,6 +55,36 @@ describe("loadForgeConfig", () => {
       FORGE_HEALTH_PORT: "0",
     });
     expect(r.ok).toBe(false);
+  });
+
+  it("accepts FORGE_DISCORD_COMMAND_NAME override", () => {
+    const r = loadForgeConfig({
+      FORGE_DISCORD_TOKEN: "x",
+      FORGE_DISCORD_APPLICATION_ID: "1",
+      FORGE_BITCRAFT_WS_URI: "wss://x",
+      FORGE_BITCRAFT_MODULE: "m",
+      FORGE_BITCRAFT_JWT: "j",
+      FORGE_DATABASE_URL: "postgresql://u:p@localhost:5432/x",
+      FORGE_DISCORD_COMMAND_NAME: "forgedev",
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.config.discordCommandName).toBe("forgedev");
+  });
+
+  it("rejects invalid FORGE_DISCORD_COMMAND_NAME", () => {
+    const r = loadForgeConfig({
+      FORGE_DISCORD_TOKEN: "x",
+      FORGE_DISCORD_APPLICATION_ID: "1",
+      FORGE_BITCRAFT_WS_URI: "wss://x",
+      FORGE_BITCRAFT_MODULE: "m",
+      FORGE_BITCRAFT_JWT: "j",
+      FORGE_DATABASE_URL: "postgresql://u:p@localhost:5432/x",
+      FORGE_DISCORD_COMMAND_NAME: "ForgeDev",
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors.map((e) => e.key)).toContain("FORGE_DISCORD_COMMAND_NAME");
   });
 
   it("rejects bad FORGE_LOG_LEVEL", () => {

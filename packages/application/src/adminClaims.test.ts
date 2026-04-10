@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { executeClaimAdd, executeClaimRemove } from "./adminClaims.js";
+import {
+  executeClaimAdd,
+  executeClaimList,
+  executeClaimRemove,
+} from "./adminClaims.js";
 
 function claimRepo(partial: { addClaim: ReturnType<typeof vi.fn> }) {
   return {
@@ -17,6 +21,27 @@ function claimEntityCache(partial?: {
     ...partial,
   };
 }
+
+describe("executeClaimList", () => {
+  it("formats each row as * NAME (`id`)", async () => {
+    const repo = {
+      listClaims: vi.fn().mockResolvedValue(["c1", "c2"]),
+      addClaim: vi.fn(),
+      removeClaim: vi.fn(),
+    };
+    const getClaimName = vi
+      .fn()
+      .mockImplementation(async (id: string) =>
+        id === "c1" ? "Alpha" : undefined
+      );
+    const { content } = await executeClaimList("g1", "ch1", {
+      repo,
+      entityCacheRepo: { getClaimName },
+    });
+    expect(content).toContain("* **Alpha** (`c1`)");
+    expect(content).toContain("* — (`c2`)");
+  });
+});
 
 describe("executeClaimAdd", () => {
   it("rejects empty claim_id", async () => {
@@ -75,7 +100,9 @@ describe("executeClaimAdd", () => {
       repo,
       entityCacheRepo,
     });
-    expect(content).toContain("Now monitoring Shimmer Bay (`claim-3`).");
+    expect(content).toContain(
+      "Now monitoring **Shimmer Bay** (`claim-3`)."
+    );
   });
 });
 
@@ -93,7 +120,9 @@ describe("executeClaimRemove", () => {
       repo,
       entityCacheRepo,
     });
-    expect(content).toBe("Stopped monitoring Solspire (`claim-9`).");
+    expect(content).toBe(
+      "Stopped monitoring **Solspire** (`claim-9`)."
+    );
   });
 
   it("falls back to id when claim name is unavailable", async () => {

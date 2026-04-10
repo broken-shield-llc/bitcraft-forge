@@ -13,10 +13,12 @@ export type BuildingCommandsDeps = {
   entityCacheRepo: Pick<
     EntityCacheRepository,
     | "getBuildingNicknames"
-    | "getBuildingSummary"
     | "getBuildingNickname"
+    | "getClaimName"
     | "inferBuildingKindFromCachedEntity"
   >;
+  /** Slash root (e.g. `forge`). Defaults to `forge`. */
+  discordCommandName?: string;
 };
 
 export async function executeBuildingList(
@@ -24,14 +26,14 @@ export async function executeBuildingList(
   forgeChannelId: string,
   deps: BuildingCommandsDeps
 ): Promise<{ content: string }> {
+  const cmd = deps.discordCommandName ?? "forge";
   const buildings = await deps.repo.listBuildings(
     discordGuildId,
     forgeChannelId
   );
   if (buildings.length === 0) {
     return {
-      content:
-        "No buildings are being monitored yet. Use `/forge building add`.",
+      content: `No buildings are being monitored yet. Use \`/${cmd} building add\`.`,
     };
   }
   const nickMap = await deps.entityCacheRepo.getBuildingNicknames(
@@ -39,13 +41,17 @@ export async function executeBuildingList(
   );
   const buildingLines = await Promise.all(
     buildings.map(async (b) => {
-      const summary = await deps.entityCacheRepo.getBuildingSummary(
-        b.buildingId
-      );
+      const rawNick = nickMap.get(b.buildingId)?.trim();
+      const buildingName =
+        rawNick && rawNick.length > 0 ? `**${rawNick}**` : "—";
       const kind = formatBuildingKind(b.kind);
-      const claimPart = b.claimId ? ` — claim \`${b.claimId}\`` : "";
-      const extra = summary ? ` · ${summary}` : "";
-      return `• ${formatBuildingDisplayLabel(b.buildingId, nickMap.get(b.buildingId))} (${kind})${claimPart}${extra}`;
+      let claimPart = "";
+      if (b.claimId) {
+        const cname = await deps.entityCacheRepo.getClaimName(b.claimId);
+        const cn = cname?.trim();
+        claimPart = cn ? ` in **${cn}**` : " in —";
+      }
+      return `* ${buildingName} (\`${b.buildingId}\`) [${kind}]${claimPart}`;
     })
   );
   return {
@@ -80,13 +86,16 @@ export async function executeBuildingAdd(
     };
   }
 
-  let buildingLabel: string;
+  let buildingName = "—";
   try {
     const nick = await deps.entityCacheRepo.getBuildingNickname(buildingId);
-    buildingLabel = formatBuildingDisplayLabel(buildingId, nick);
+    const t = nick?.trim();
+    if (t) buildingName = `**${t}**`;
   } catch {
-    buildingLabel = formatBuildingDisplayLabel(buildingId, undefined);
+    void 0;
   }
+  const kindLabel = formatBuildingKind(kind);
+  const line = `${buildingName} (\`${buildingId}\`) [${kindLabel}]`;
   const r = await deps.repo.addBuilding(
     discordGuildId,
     forgeChannelId,
@@ -97,8 +106,8 @@ export async function executeBuildingAdd(
   return {
     content:
       r === "duplicate"
-        ? `Building ${buildingLabel} is already monitored.`
-        : `Now monitoring ${buildingLabel} as **${formatBuildingKind(kind)}**.`,
+        ? `${line} is already monitored.`
+        : `Now monitoring ${line}`,
   };
 }
 

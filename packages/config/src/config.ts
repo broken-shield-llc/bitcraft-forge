@@ -1,6 +1,10 @@
 export type ForgeConfig = {
   discordToken: string;
   discordApplicationId: string;
+  /**
+   * Root slash command name (e.g. `forge`, `forgedev`). Must be 1–32 chars: lowercase letters, digits, underscore, hyphen.
+   */
+  discordCommandName: string;
   discordGuildId: string | undefined;
   bitcraftWsUri: string;
   bitcraftModule: string;
@@ -107,6 +111,16 @@ export function loadForgeConfig(
   }
 
   const guildRaw = f.FORGE_DISCORD_GUILD_ID?.trim();
+
+  const commandNameRaw = (f.FORGE_DISCORD_COMMAND_NAME ?? "forge").trim();
+  if (!/^[-a-z0-9_]{1,32}$/.test(commandNameRaw)) {
+    errors.push({
+      key: "FORGE_DISCORD_COMMAND_NAME",
+      message:
+        "FORGE_DISCORD_COMMAND_NAME must be 1–32 characters: lowercase letters, digits, underscore, or hyphen (default: forge)",
+    });
+  }
+
   const logRaw = (f.FORGE_LOG_LEVEL ?? "info").toLowerCase();
   let logLevel: ForgeConfig["logLevel"] = "info";
   if (
@@ -209,6 +223,7 @@ export function loadForgeConfig(
     config: {
       discordToken: discordToken!,
       discordApplicationId: discordApplicationId!,
+      discordCommandName: commandNameRaw,
       discordGuildId: guildRaw || undefined,
       bitcraftWsUri: bitcraftWsUri!,
       bitcraftModule: bitcraftModule!,

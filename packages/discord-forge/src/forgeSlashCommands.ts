@@ -1,8 +1,8 @@
 import { ChannelType, SlashCommandBuilder } from "discord.js";
 
-export function buildForgeSlashCommand() {
+export function buildForgeSlashCommand(commandName: string) {
   return new SlashCommandBuilder()
-    .setName("forge")
+    .setName(commandName)
     .setDescription("FORGE — Flow Orchestration & Relay for Game Events")
     .addSubcommand((s) =>
       s

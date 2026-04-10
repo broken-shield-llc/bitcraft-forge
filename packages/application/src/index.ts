@@ -18,6 +18,7 @@ export {
 export {
   executeForgeDisable,
   executeForgeEnable,
+  forgeChannelNotEnabledMessage,
   FORGE_CHANNEL_NOT_ENABLED_MESSAGE,
   type ForgeChannelEnableDeps,
 } from "./forgeChannelEnable.js";

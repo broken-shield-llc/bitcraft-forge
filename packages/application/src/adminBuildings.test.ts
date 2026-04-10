@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   executeBuildingAdd,
+  executeBuildingList,
   type BuildingCommandsDeps,
 } from "./adminBuildings.js";
 
@@ -18,8 +19,8 @@ function baseBuildingDeps(
   };
   const entityCacheRepo = {
     getBuildingNicknames: vi.fn().mockResolvedValue(new Map()),
-    getBuildingSummary: vi.fn(),
     getBuildingNickname: vi.fn().mockResolvedValue(undefined),
+    getClaimName: vi.fn().mockResolvedValue(undefined),
     inferBuildingKindFromCachedEntity: vi
       .fn()
       .mockResolvedValue("stall" as const),
@@ -27,6 +28,37 @@ function baseBuildingDeps(
   };
   return { repo, entityCacheRepo };
 }
+
+describe("executeBuildingList", () => {
+  it("formats rows with nickname, kind, and claim name", async () => {
+    const repo = {
+      listBuildings: vi.fn().mockResolvedValue([
+        {
+          buildingId: "b1",
+          kind: "stall" as const,
+          claimId: "claim-1",
+        },
+      ]),
+      addBuilding: vi.fn(),
+      removeBuilding: vi.fn(),
+    };
+    const entityCacheRepo = {
+      getBuildingNicknames: vi
+        .fn()
+        .mockResolvedValue(new Map([["b1", "My Stall"]])),
+      getBuildingNickname: vi.fn(),
+      getClaimName: vi.fn().mockResolvedValue("Shimmer Bay"),
+      inferBuildingKindFromCachedEntity: vi.fn(),
+    };
+    const { content } = await executeBuildingList("g1", "c1", {
+      repo,
+      entityCacheRepo,
+    });
+    expect(content).toContain(
+      "* **My Stall** (`b1`) [Barter Stall] in **Shimmer Bay**"
+    );
+  });
+});
 
 describe("executeBuildingAdd", () => {
   it("rejects invalid building_id", async () => {
@@ -80,4 +112,21 @@ describe("executeBuildingAdd", () => {
     );
   });
 
+  it("success message uses nickname, id, and kind in brackets", async () => {
+    const deps = baseBuildingDeps({
+      entityCacheRepo: {
+        ...baseBuildingDeps().entityCacheRepo,
+        getBuildingNickname: vi.fn().mockResolvedValue("Shop One"),
+      },
+    });
+    const { content } = await executeBuildingAdd(
+      "g1",
+      "c1",
+      { rawBuildingId: "42" },
+      deps
+    );
+    expect(content).toBe(
+      "Now monitoring **Shop One** (`42`) [Barter Stall]"
+    );
+  });
 });

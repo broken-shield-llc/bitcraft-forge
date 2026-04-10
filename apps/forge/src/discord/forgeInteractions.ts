@@ -18,7 +18,7 @@ import {
   executeQuestBoardList,
   executeQuestLeaderboard,
   executeSetAnnouncementChannel,
-  FORGE_CHANNEL_NOT_ENABLED_MESSAGE,
+  forgeChannelNotEnabledMessage,
 } from "@forge/application";
 import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
@@ -47,16 +47,52 @@ export type ForgeInteractionContext = {
 const buildingDeps = (ctx: ForgeInteractionContext) => ({
   repo: ctx.repo,
   entityCacheRepo: ctx.entityCacheRepo,
+  discordCommandName: ctx.config.discordCommandName,
 });
 
 const claimDeps = (ctx: ForgeInteractionContext) => ({
   repo: ctx.repo,
   entityCacheRepo: ctx.entityCacheRepo,
+  discordCommandName: ctx.config.discordCommandName,
 });
 
 const enableDeps = (ctx: ForgeInteractionContext) => ({
   repo: ctx.repo,
+  discordCommandName: ctx.config.discordCommandName,
 });
+
+const questBoardListDeps = (ctx: ForgeInteractionContext) => ({
+  repo: ctx.repo,
+  entityCacheRepo: ctx.entityCacheRepo,
+  questOffers: ctx.questCache,
+  discordCommandName: ctx.config.discordCommandName,
+});
+
+/** Ack within Discord’s ~3s window; false if the interaction is already invalid (10062). */
+async function deferEphemeralOrAbort(
+  interaction: ChatInputCommandInteraction
+): Promise<boolean> {
+  if (interaction.deferred || interaction.replied) return true;
+  try {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    return true;
+  } catch (e: unknown) {
+    if (isUnknownInteractionError(e)) return false;
+    throw e;
+  }
+}
+
+async function editReplyCatchUnknown(
+  interaction: ChatInputCommandInteraction,
+  options: InteractionEditReplyOptions
+): Promise<void> {
+  try {
+    await interaction.editReply(options);
+  } catch (e: unknown) {
+    if (isUnknownInteractionError(e)) return;
+    throw e;
+  }
+}
 
 function forgeScopeChannelId(
   interaction: ChatInputCommandInteraction
@@ -70,12 +106,14 @@ export async function handleForgeInteraction(
   interaction: ChatInputCommandInteraction,
   ctx: ForgeInteractionContext
 ): Promise<void> {
-  if (interaction.commandName !== "forge") return;
+  if (interaction.commandName !== ctx.config.discordCommandName) return;
 
   const group = interaction.options.getSubcommandGroup(false);
   const sub = interaction.options.getSubcommand(true);
 
   if (!group && sub === "health") {
+    if (!(await deferEphemeralOrAbort(interaction))) return;
+
     const snap = getStdbConnectionSnapshot();
     const stdb = {
       connected: snap.connected,
@@ -96,18 +134,15 @@ export async function handleForgeInteraction(
         "Could not load Postgres cache counts (check DB and logs).",
       ].join("\n");
     }
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content,
-    });
+    await editReplyCatchUnknown(interaction, { content });
     return;
   }
 
   if (!interaction.inGuild() || !interaction.guildId) {
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content:
-        "Use `/forge` in a server (except `/forge health`, which works here).",
+    if (!(await deferEphemeralOrAbort(interaction))) return;
+    const cmd = ctx.config.discordCommandName;
+    await editReplyCatchUnknown(interaction, {
+      content: `Use \`/${cmd}\` in a server (except \`/${cmd} health\`, which works here).`,
     });
     return;
   }
@@ -115,21 +150,22 @@ export async function handleForgeInteraction(
   const guildId = interaction.guildId;
   const forgeChannelId = forgeScopeChannelId(interaction);
   if (!forgeChannelId) {
-    await interaction.reply({
-      flags: MessageFlags.Ephemeral,
-      content: "Use this command in a server text channel.",
-    });
+    if (!(await deferEphemeralOrAbort(interaction))) return;
+    await editReplyCatchUnknown(
+      interaction,
+      {
+        content: "Use this command in a server text channel.",
+      }
+    );
     return;
   }
 
   try {
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    }
+    if (!(await deferEphemeralOrAbort(interaction))) return;
 
     if (!group && sub === "enable") {
       if (!requireManageGuild(interaction)) {
-        await interaction.editReply({
+        await editReplyCatchUnknown(interaction, {
           content:
             "You need **Manage Server** to enable BitCraft Forge for a channel.",
         });
@@ -140,13 +176,13 @@ export async function handleForgeInteraction(
         forgeChannelId,
         enableDeps(ctx)
       );
-      await interaction.editReply({ content });
+      await editReplyCatchUnknown(interaction, { content });
       return;
     }
 
     if (!group && sub === "disable") {
       if (!requireManageGuild(interaction)) {
-        await interaction.editReply({
+        await editReplyCatchUnknown(interaction, {
           content:
             "You need **Manage Server** to disable BitCraft Forge for a channel.",
         });
@@ -157,15 +193,15 @@ export async function handleForgeInteraction(
         forgeChannelId,
         enableDeps(ctx)
       );
-      await interaction.editReply({ content });
+      await editReplyCatchUnknown(interaction, { content });
       return;
     }
 
     const replyIfNotEnabledAfterDefer = async (): Promise<boolean> => {
       const ok = await ctx.repo.isForgeChannelEnabled(guildId, forgeChannelId);
       if (!ok) {
-        await interaction.editReply({
-          content: FORGE_CHANNEL_NOT_ENABLED_MESSAGE,
+        await editReplyCatchUnknown(interaction, {
+          content: forgeChannelNotEnabledMessage(ctx.config.discordCommandName),
         });
       }
       return ok;
@@ -178,15 +214,12 @@ export async function handleForgeInteraction(
         const list = await executeQuestBoardList(
           guildId,
           forgeChannelId,
-          {
-            repo: ctx.repo,
-            entityCacheRepo: ctx.entityCacheRepo,
-            questOffers: ctx.questCache,
-          },
+          questBoardListDeps(ctx),
           0
         );
         if (list.kind === "no_buildings" || list.kind === "no_offers") {
-          await interaction.editReply(
+          await editReplyCatchUnknown(
+            interaction,
             questBoardEditPayload(
               list.content,
               ctx.config.questBoardBannerUrl,
@@ -195,7 +228,8 @@ export async function handleForgeInteraction(
           );
           return;
         }
-        await interaction.editReply(
+        await editReplyCatchUnknown(
+          interaction,
           questBoardEditPayload(
             list.content,
             ctx.config.questBoardBannerUrl,
@@ -214,19 +248,19 @@ export async function handleForgeInteraction(
             entityCacheRepo: ctx.entityCacheRepo,
           }
         );
-        await interaction.editReply({ content });
+        await editReplyCatchUnknown(interaction, { content });
         return;
       }
 
-      await interaction.editReply({
-        content: "Unknown `/forge quest` subcommand.",
+      await editReplyCatchUnknown(interaction, {
+        content: `Unknown \`/${ctx.config.discordCommandName} quest\` subcommand.`,
       });
       return;
     }
 
     if (group === "channel" && sub === "set") {
       if (!requireManageGuild(interaction)) {
-        await interaction.editReply({
+        await editReplyCatchUnknown(interaction, {
           content:
             "You need **Manage Server** to set announcement channels.",
         });
@@ -240,16 +274,19 @@ export async function handleForgeInteraction(
           guildId,
           forgeChannelId,
           null,
-          { repo: ctx.repo }
+          {
+            repo: ctx.repo,
+            discordCommandName: ctx.config.discordCommandName,
+          }
         );
-        await interaction.editReply({ content });
+        await editReplyCatchUnknown(interaction, { content });
         return;
       }
       if (
         ch.type !== ChannelType.GuildText &&
         ch.type !== ChannelType.GuildAnnouncement
       ) {
-        await interaction.editReply({
+        await editReplyCatchUnknown(interaction, {
           content: "Pick a text or announcement channel.",
         });
         return;
@@ -258,14 +295,17 @@ export async function handleForgeInteraction(
         guildId,
         forgeChannelId,
         ch.id,
-        { repo: ctx.repo }
+        {
+          repo: ctx.repo,
+          discordCommandName: ctx.config.discordCommandName,
+        }
       );
-      await interaction.editReply({ content });
+      await editReplyCatchUnknown(interaction, { content });
       return;
     }
 
     if (!requireManageGuild(interaction)) {
-      await interaction.editReply({
+      await editReplyCatchUnknown(interaction, {
         content:
           "You need the **Manage Server** permission to configure FORGE monitors for this server.",
       });
@@ -281,7 +321,7 @@ export async function handleForgeInteraction(
           forgeChannelId,
           claimDeps(ctx)
         );
-        await interaction.editReply({ content });
+        await editReplyCatchUnknown(interaction, { content });
         return;
       }
 
@@ -294,7 +334,7 @@ export async function handleForgeInteraction(
           rawClaim,
           claimDeps(ctx)
         );
-        await interaction.editReply({ content });
+        await editReplyCatchUnknown(interaction, { content });
         return;
       }
 
@@ -305,12 +345,12 @@ export async function handleForgeInteraction(
           rawClaim,
           claimDeps(ctx)
         );
-        await interaction.editReply({ content });
+        await editReplyCatchUnknown(interaction, { content });
         return;
       }
 
-      await interaction.editReply({
-        content: "Unknown `/forge claim` subcommand.",
+      await editReplyCatchUnknown(interaction, {
+        content: `Unknown \`/${ctx.config.discordCommandName} claim\` subcommand.`,
       });
       return;
     }
@@ -324,7 +364,7 @@ export async function handleForgeInteraction(
           forgeChannelId,
           buildingDeps(ctx)
         );
-        await interaction.editReply({ content });
+        await editReplyCatchUnknown(interaction, { content });
         return;
       }
 
@@ -336,7 +376,7 @@ export async function handleForgeInteraction(
           { rawBuildingId: rawBuilding },
           buildingDeps(ctx)
         );
-        await interaction.editReply({ content });
+        await editReplyCatchUnknown(interaction, { content });
         return;
       }
 
@@ -348,17 +388,17 @@ export async function handleForgeInteraction(
           rawBuilding,
           buildingDeps(ctx)
         );
-        await interaction.editReply({ content });
+        await editReplyCatchUnknown(interaction, { content });
         return;
       }
 
-      await interaction.editReply({
-        content: "Unknown `/forge building` subcommand.",
+      await editReplyCatchUnknown(interaction, {
+        content: `Unknown \`/${ctx.config.discordCommandName} building\` subcommand.`,
       });
       return;
     }
 
-    await interaction.editReply({
+    await editReplyCatchUnknown(interaction, {
       content: "Unknown FORGE command.",
     });
   } catch (e: unknown) {
@@ -374,7 +414,7 @@ export async function handleForgeInteraction(
     const errContent = `Error: ${msg}`;
     try {
       if (interaction.deferred) {
-        await interaction.editReply({ content: errContent });
+        await editReplyCatchUnknown(interaction, { content: errContent });
       } else if (interaction.replied) {
         await interaction.followUp({
           flags: MessageFlags.Ephemeral,
