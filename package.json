@@ -1,6 +1,15 @@
 {
   "name": "bitcraft-forge",
   "private": true,
+  "description": "Self-hosted Discord bot and read-only SpacetimeDB client for BitCraft Online — quest board, barter announcements, and Postgres-backed entity cache.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/broken-shield-llc/bitcraft-forge.git"
+  },
+  "homepage": "https://github.com/broken-shield-llc/bitcraft-forge#readme",
+  "bugs": {
+    "url": "https://github.com/broken-shield-llc/bitcraft-forge/issues"
+  },
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "prepare": "node scripts/ensure-bitcraft-bindings.mjs",
