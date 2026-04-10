@@ -162,7 +162,9 @@ export function wireQuestSubscriptions(
     }
     const client = getDiscordClient();
     if (!client) {
-      log.debug("quest announce skipped (no discord client)");
+      log.warn(
+        "quest announce skipped (no discord client)"
+      );
       return;
     }
     let shopNickname: string | undefined;
@@ -288,7 +290,9 @@ export function wireQuestSubscriptions(
     }
     const client = getDiscordClient();
     if (!client) {
-      log.debug("quest completion announce skipped (no discord client)");
+      log.warn(
+        "quest completion announce skipped (no discord client) — ensure Discord starts before SpacetimeDB"
+      );
       return;
     }
     let shopNickname: string | undefined;

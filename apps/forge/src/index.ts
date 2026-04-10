@@ -35,15 +35,15 @@ const entityCacheRepo = new DrizzleEntityCacheRepository(db);
 const questCache = new QuestOfferCache();
 const discordHolder: { client?: Client } = {};
 
+discordHolder.client = await startDiscordBot(loaded.config, log, {
+  repo,
+  entityCacheRepo,
+  questCache,
+});
+
 startStdb(loaded.config, log, {
   repo,
   entityCacheRepo,
   questCache,
   getDiscordClient: () => discordHolder.client,
-});
-
-discordHolder.client = await startDiscordBot(loaded.config, log, {
-  repo,
-  entityCacheRepo,
-  questCache,
 });
