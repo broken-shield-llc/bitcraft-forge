@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+.git
+.github
+cdk.out
+.env
+.env.*
+*.md
+!README.md
+coverage
+.vscode
+apps/forge/vendor

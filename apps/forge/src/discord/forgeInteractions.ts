@@ -292,9 +292,7 @@ export async function handleForgeInteraction(
           guildId,
           forgeChannelId,
           rawClaim,
-          {
-            repo: ctx.repo,
-          }
+          claimDeps(ctx)
         );
         await interaction.editReply({ content });
         return;
@@ -305,9 +303,7 @@ export async function handleForgeInteraction(
           guildId,
           forgeChannelId,
           rawClaim,
-          {
-            repo: ctx.repo,
-          }
+          claimDeps(ctx)
         );
         await interaction.editReply({ content });
         return;
