@@ -28,7 +28,6 @@ export type WireQuestDeps = {
   entityCacheRepo: EntityCacheRepository;
   getDiscordClient: () => Client | undefined;
   questCache: QuestOfferCache;
-  /** Fires once both quest-related table subscriptions have applied and initial hydration ran. */
   onQuestProjectionReady?: () => void;
 };
 
@@ -46,7 +45,6 @@ function parseScopeKey(k: string): ScopeRef {
   };
 }
 
-/** shop entity id → scope keys (`guildId` + unit separator + `forgeChannelId`) */
 function buildShopToScopes(
   pairs: Awaited<
     ReturnType<GuildConfigRepository["listMonitoredBuildingScopePairs"]>
@@ -319,7 +317,7 @@ export function wireQuestSubscriptions(
     const snap = questCache.get(questKey);
     let offerSummary = snap?.offerSummary ?? "—";
     let requiredSummary = snap?.requiredSummary ?? "—";
-    let remainingStock: number | undefined = snap?.remainingStock;
+    const remainingStock: number | undefined = snap?.remainingStock;
     try {
       if (snap) {
         const ids = new Set<number>();
@@ -491,7 +489,6 @@ export function wireQuestSubscriptions(
     }, newAnnounceDeferMs);
   };
 
-  /** Updates only: live row changes → Quest update (optional). */
   const onTradeUpdated = (row: TradeOrderState): void => {
     const snap = mapTradeOrderToSnapshot(row);
     questCache.upsert(snap);

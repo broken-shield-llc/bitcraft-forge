@@ -3,7 +3,6 @@ import { type QuestOfferSnapshot } from "@forge/domain";
 
 const EMBED_COLOR = 0x3498db;
 const COMPLETION_EMBED_COLOR = 0x27ae60;
-/** Discord embed title max length */
 const TITLE_MAX = 256;
 
 function buildQuestEmbedTitle(
@@ -63,15 +62,12 @@ export function buildQuestOfferEmbed(
 export type QuestCompletionEmbedInput = {
   claimName?: string;
   shopNickname?: string;
-  /** In-game name when cached, else STDB identity line from `formatCompletionSubjectDisplay`. */
   traderDisplay: string;
   offerSummary: string;
   requiredSummary: string;
-  /** Omitted when the completed order was not in the local quest projection. */
   remainingStock?: number;
 };
 
-/** Discord announcement when `barter_stall_order_accept` commits (separate from offer new/update embeds). */
 export function buildQuestCompletionEmbed(
   input: QuestCompletionEmbedInput
 ): EmbedBuilder {

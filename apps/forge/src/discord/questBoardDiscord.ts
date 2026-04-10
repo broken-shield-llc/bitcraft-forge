@@ -8,10 +8,7 @@ import {
 } from "discord.js";
 import type { QuestBoardListResult } from "@forge/application";
 
-/** Discord embed description max length. */
 const EMBED_DESC_MAX = 4096;
-
-/** Sidebar / embed strip; matches Discord’s dark theme. */
 const QUEST_BOARD_EMBED_COLOR = 0x2b2d31;
 
 const QB_SEP = "|";
@@ -65,9 +62,6 @@ export function isForgeQuestBoardComponent(customId: string): boolean {
   return parseForgeQuestBoardCustomId(customId) !== null;
 }
 
-/**
- * Removes the leading `**Quest board**` line when a banner image replaces that heading.
- */
 export function stripQuestBoardTitleLine(text: string): string {
   return text.replace(/^\*\*Quest board\*\*\s*\n?/u, "");
 }
@@ -77,10 +71,6 @@ export type QuestBoardEmbedsResult = {
   embeds: EmbedBuilder[];
 };
 
-/**
- * When `bannerUrl` is set (HTTPS image), returns two embeds: wide banner image, then body text.
- * Otherwise plain `content` only (no embeds).
- */
 export function buildQuestBoardEmbeds(
   fullContent: string,
   bannerUrl: string | undefined
@@ -109,7 +99,6 @@ export function buildQuestBoardEmbeds(
   };
 }
 
-/** Payload for `editReply` / `reply` including optional message components. */
 export function questBoardEditPayload(
   fullContent: string,
   bannerUrl: string | undefined,
@@ -121,9 +110,6 @@ export function questBoardEditPayload(
   return out;
 }
 
-/**
- * Summary view: shop picker (+ prev/next when paginated).
- */
 export function buildQuestBoardListComponents(
   list: Extract<QuestBoardListResult, { kind: "list" }>,
   forgeChannelId: string
@@ -157,9 +143,6 @@ export function buildQuestBoardListComponents(
   return rows;
 }
 
-/**
- * Detail view: return to the summary list.
- */
 export function buildQuestBoardDetailComponents(
   forgeChannelId: string
 ): ActionRowBuilder[] {

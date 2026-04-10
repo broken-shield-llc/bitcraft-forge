@@ -11,11 +11,8 @@ import {
 } from "@forge/domain";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
 
-/** Hard cap so pathological cases do not build huge strings in memory. */
 const MAX_BOARD_OFFERS_HARD = 120;
-/** Discord message content max is 2000; stay under with room for footer. */
 const MAX_BOARD_CHARS = 1950;
-/** Discord StringSelect max options per menu and max `value` length. */
 export const QUEST_BOARD_SHOPS_PER_PAGE = 25;
 const MAX_DISCORD_SELECT_VALUE_LEN = 100;
 
@@ -144,9 +141,6 @@ export type QuestBoardListResult =
       shops: QuestBoardListShopRow[];
     };
 
-/**
- * Summary step for the interactive quest board (shop picker + pagination metadata).
- */
 export async function executeQuestBoardList(
   discordGuildId: string,
   forgeChannelId: string,
@@ -261,9 +255,6 @@ export type QuestBoardShopDetailResult =
   | { kind: "not_found"; content: string }
   | { kind: "ok"; content: string };
 
-/**
- * Full quest lines for a single monitored shop (after picking from the summary).
- */
 export async function executeQuestBoardShopDetail(
   discordGuildId: string,
   forgeChannelId: string,

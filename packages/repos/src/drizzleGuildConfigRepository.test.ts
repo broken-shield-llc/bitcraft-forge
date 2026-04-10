@@ -9,9 +9,6 @@ function drizzleUniqueViolationError(): Error {
   return Object.assign(new Error("Failed query: insert …"), { cause });
 }
 
-/**
- * Minimal `ForgeDb` mock: `ensureGuild` does one insert chain; `addBuilding` does a second insert that can reject.
- */
 function createMockDbForAddBuilding(
   secondInsertResult: "ok" | "unique_violation"
 ): ForgeDb {
@@ -38,10 +35,6 @@ function createMockDbForAddBuilding(
   } as unknown as ForgeDb;
 }
 
-/**
- * `recordQuestCompletion`: first insert is `ensureGuild` (onConflictDoNothing),
- * second is `quest_completions` (always inserts; no duplicate short-circuit after migration 0013).
- */
 function createMockDbForRecordQuestCompletion(): ForgeDb {
   let insertCall = 0;
   return {

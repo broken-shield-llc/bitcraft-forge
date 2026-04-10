@@ -20,11 +20,7 @@ export type WireEntityCacheDeps = {
   entityCacheRepo: EntityCacheRepository;
 };
 
-/**
- * Subscribes to `item_desc`, `claim_state`, `building_state`, `building_desc`,
- * `building_nickname_state`, `inventory_state`, `user_state`, and `player_username_state`;
- * mirrors rows into Postgres (TTL-gated where noted in repo).
- */
+/** Subscribes to entity tables and mirrors rows into Postgres (TTL-gated). */
 export function wireStdbEntityCache(
   connection: DbConnection,
   deps: WireEntityCacheDeps

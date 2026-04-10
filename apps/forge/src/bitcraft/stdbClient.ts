@@ -48,10 +48,8 @@ function connectErrorMessage(err: unknown): string {
   }
 }
 
-/** Keep logs readable (full message still in structured log). */
 const MAX_LAST_ERROR_LEN = 400;
 
-/** Snapshot for `/forge health` (connection + quest table subscriptions). */
 export type StdbConnectionSnapshot = {
   connected: boolean;
   questProjectionReady: boolean;
@@ -116,7 +114,7 @@ export function startStdb(
           try {
             tradeOrderRows = connection.db.tradeOrderState.count();
           } catch {
-            /* ignore */
+            void 0;
           }
           appendPocEvent(config.pocEventLogPath, {
             kind: "subscription_applied",

@@ -15,11 +15,8 @@ export function canStallFulfillOfferOnce(
   return true;
 }
 
-/** Source of aggregated `inventory_state` for a shop (`ownerEntityId`). */
 export type StallInventoryBoardPort = {
-  /** True if we have seen at least one `inventory_state` row for this owner. */
   hasInventoryDataForOwner(ownerEntityIdStr: string): boolean;
-  /** Totals across that owner's inventories (all pockets); empty if none. */
   getTotalsForOwner(ownerEntityIdStr: string): ReadonlyMap<number, number>;
 };
 

@@ -1,6 +1,5 @@
 import type { EntityCacheTableCounts } from "@forge/repos";
 
-/** Live BitCraft STDB client + quest subscription state (from `getStdbConnectionSnapshot()` in forge). */
 export type ForgeStdbSnapshot = {
   connected: boolean;
   questProjectionReady: boolean;
@@ -11,7 +10,6 @@ export type ForgeHealthViewInput = {
   entityCacheCounts: EntityCacheTableCounts;
 };
 
-/** Shared with `/forge health` when Postgres counts fail — keep wording in one place. */
 export function forgeHealthStdbMarkdownLines(stdb: ForgeStdbSnapshot): string[] {
   return [
     `SpacetimeDB connected: **${stdb.connected}**`,
@@ -30,7 +28,6 @@ const CACHE_LINES: { key: keyof EntityCacheTableCounts; table: string }[] = [
   { key: "playerUsername", table: "`player_username_state`" },
 ];
 
-/** Ephemeral `/forge health` body (Markdown). */
 export function buildForgeHealthContent(input: ForgeHealthViewInput): string {
   const { stdb, entityCacheCounts: c } = input;
   const lines = [

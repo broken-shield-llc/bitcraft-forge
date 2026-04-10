@@ -34,7 +34,7 @@ async function resolveStdbIdentityDisplayNames(
         const t = name?.trim();
         if (t) out.set(`s:${hex}`, t);
       } catch {
-        /* use STDB fallback below */
+        void 0;
       }
     })
   );
@@ -50,9 +50,6 @@ function leaderboardSubjectLine(
   return formatCompletionSubjectDisplay(subjectKey);
 }
 
-/**
- * Builds the ephemeral `/forge quest leaderboard` message body.
- */
 export async function executeQuestLeaderboard(
   discordGuildId: string,
   forgeChannelId: string,

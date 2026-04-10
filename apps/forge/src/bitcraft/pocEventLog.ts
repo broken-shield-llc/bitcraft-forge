@@ -13,6 +13,6 @@ export function appendPocEvent(
       JSON.stringify({ t: new Date().toISOString(), ...payload }) + "\n"
     );
   } catch {
-    /* PoC: never crash the process on log failure */
+    void 0;
   }
 }

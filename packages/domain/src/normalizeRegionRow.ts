@@ -1,5 +1,3 @@
-/** Phase 0: normalize a row-shaped object for logging / display (stub until bound to real types). */
-
 export type RegionConnectionInfoDto = {
   id: number;
   label: string;

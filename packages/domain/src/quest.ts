@@ -1,9 +1,6 @@
-/** Normalized quest / barter offer for board + announcements (no SpacetimeDB imports). */
-
 export type QuestRarityTier = "low" | "medium" | "high";
 
 export type QuestOfferSnapshot = {
-  /** Stable key: shop + order entity ids */
   questKey: string;
   shopEntityIdStr: string;
   orderEntityIdStr: string;
@@ -23,7 +20,6 @@ export function questKeyFromParts(
   return `${shopEntityId.toString()}:${orderEntityId.toString()}`;
 }
 
-/** Parse a monitored `building_id` string into bigint (BitCraft entity id). */
 export function parseEntityIdString(raw: string): bigint | null {
   const s = raw.trim();
   if (!s) return null;
@@ -46,7 +42,6 @@ export function formatItemStacks(stacks: ItemStackLike[]): string {
     .join(", ");
 }
 
-/** Same as `formatItemStacks` but uses cached display names when present. */
 export function formatItemStacksWithNames(
   stacks: ItemStackLike[],
   names: Map<number, string | undefined>
@@ -87,7 +82,6 @@ export function formatCompletionSubjectDisplay(subjectKey: string): string {
 export type RewardRating = "legendary_plus";
 
 export function isLegendaryPlusRarityTag(tag: string): boolean {
-  // BitCraft Rarity tags: Default, Common, Uncommon, Rare, Epic, Legendary, Mythic
   return tag === "Legendary" || tag === "Mythic";
 }
 

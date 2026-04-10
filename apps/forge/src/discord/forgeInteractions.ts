@@ -123,10 +123,6 @@ export async function handleForgeInteraction(
   }
 
   try {
-    /**
-     * Guild text-channel slashes are pre-deferred in `discordBot` before this runs.
-     * Fallback defer keeps tests and any other entrypoints safe.
-     */
     if (!interaction.deferred && !interaction.replied) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     }
@@ -165,9 +161,6 @@ export async function handleForgeInteraction(
       return;
     }
 
-    /**
-     * Never await the DB before the deferred ack above — only after deferReply.
-     */
     const replyIfNotEnabledAfterDefer = async (): Promise<boolean> => {
       const ok = await ctx.repo.isForgeChannelEnabled(guildId, forgeChannelId);
       if (!ok) {

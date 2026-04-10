@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isPgUniqueViolation } from "./pgErrors.js";
 
-/** Mimics drizzle-orm `DrizzleQueryError` wrapping a pg `23505`. */
 function drizzleUniqueViolationError(): Error {
   const cause = Object.assign(new Error("duplicate key"), {
     code: "23505",

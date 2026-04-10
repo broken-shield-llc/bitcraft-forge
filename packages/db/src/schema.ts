@@ -129,7 +129,6 @@ export const questCompletions = pgTable(
   })
 );
 
-/** Cached `item_desc` row snapshot from SpacetimeDB (refreshed after TTL). */
 export const stdbItemCache = pgTable("stdb_item_cache", {
   itemId: integer("item_id").primaryKey(),
   payload: jsonb("payload").notNull().$type<Record<string, unknown>>(),
@@ -138,7 +137,6 @@ export const stdbItemCache = pgTable("stdb_item_cache", {
     .notNull(),
 });
 
-/** Cached `claim_state` row snapshot (key = claim `entityId` as decimal string). */
 export const stdbClaimCache = pgTable("stdb_claim_cache", {
   claimEntityId: text("claim_entity_id").primaryKey(),
   payload: jsonb("payload").notNull().$type<Record<string, unknown>>(),
@@ -147,7 +145,6 @@ export const stdbClaimCache = pgTable("stdb_claim_cache", {
     .notNull(),
 });
 
-/** Cached `building_state` row snapshot (key = building `entityId` as decimal string). */
 export const stdbBuildingCache = pgTable("stdb_building_cache", {
   buildingEntityId: text("building_entity_id").primaryKey(),
   payload: jsonb("payload").notNull().$type<Record<string, unknown>>(),
@@ -156,7 +153,6 @@ export const stdbBuildingCache = pgTable("stdb_building_cache", {
     .notNull(),
 });
 
-/** Cached `building_desc` row (key = `id` referenced by `building_state.building_description_id`). */
 export const stdbBuildingDescCache = pgTable("stdb_building_desc_cache", {
   buildingDescriptionId: integer("building_description_id").primaryKey(),
   payload: jsonb("payload").notNull().$type<Record<string, unknown>>(),
@@ -165,7 +161,6 @@ export const stdbBuildingDescCache = pgTable("stdb_building_desc_cache", {
     .notNull(),
 });
 
-/** Cached `building_nickname_state` (player-set nickname for display). */
 export const stdbBuildingNicknameCache = pgTable("stdb_building_nickname_cache", {
   buildingEntityId: text("building_entity_id").primaryKey(),
   nickname: text("nickname").notNull(),
@@ -174,12 +169,10 @@ export const stdbBuildingNicknameCache = pgTable("stdb_building_nickname_cache",
     .notNull(),
 });
 
-/** Cached `inventory_state` rows (key = inventory `entityId` as decimal string). */
 export const stdbInventoryCache = pgTable(
   "stdb_inventory_cache",
   {
     inventoryEntityId: text("inventory_entity_id").primaryKey(),
-    /** `ownerEntityId` for aggregating all inventories belonging to a shop building. */
     ownerEntityId: text("owner_entity_id").notNull(),
     payload: jsonb("payload").notNull().$type<Record<string, unknown>>(),
     cachedAt: timestamp("cached_at", { withTimezone: true })
@@ -193,7 +186,6 @@ export const stdbInventoryCache = pgTable(
   })
 );
 
-/** Cached `user_state`: SpacetimeDB identity hex → traveler `entityId` string. */
 export const stdbUserStateCache = pgTable("stdb_user_state_cache", {
   identityHex: text("identity_hex").primaryKey(),
   travelerEntityId: text("traveler_entity_id").notNull(),
@@ -202,7 +194,6 @@ export const stdbUserStateCache = pgTable("stdb_user_state_cache", {
     .notNull(),
 });
 
-/** Cached `player_username_state`: traveler `entityId` → in-game username. */
 export const stdbPlayerUsernameCache = pgTable("stdb_player_username_cache", {
   travelerEntityId: text("traveler_entity_id").primaryKey(),
   username: text("username").notNull(),

@@ -1,6 +1,5 @@
 import type { QuestOfferReadPort, QuestOfferSnapshot } from "@forge/domain";
 
-/** In-memory projection of subscribed `trade_order_state` rows (quest offers). */
 export class QuestOfferCache implements QuestOfferReadPort {
   private readonly byKey = new Map<string, QuestOfferSnapshot>();
 
@@ -24,7 +23,6 @@ export class QuestOfferCache implements QuestOfferReadPort {
     return [...this.byKey.values()];
   }
 
-  /** Offers whose shop entity id matches a monitored building id in this guild. */
   snapshotForMonitoredBuildings(
     monitoredBuildingIds: Set<string>
   ): QuestOfferSnapshot[] {

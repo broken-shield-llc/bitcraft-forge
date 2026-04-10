@@ -8,7 +8,6 @@ export type ForgeConfig = {
   databaseUrl: string;
   pocEventLogPath: string | undefined;
   logLevel: "debug" | "info" | "warn" | "error";
-  /** Coalesce rapid quest/offer updates before posting to Discord (ms). */
   announcementDebounceMs: number;
   /**
    * When false, skip Discord announcements for `trade_order_state` **updates** (owner edits / stock changes).
@@ -20,15 +19,9 @@ export type ForgeConfig = {
    * Should exceed {@link ForgeConfig.announcementDebounceMs} so debounced updates are dropped.
    */
   questCompletionSuppressUpdatesMs: number;
-  /** After STDB subscriptions apply, skip Discord quest announces for this long (absorbs replay). */
   questAnnounceGraceMs: number;
-  /** Total offered quantity at/above this value is treated as high rarity. */
   questRarityHighThreshold: number;
-  /** Min age (ms) before Postgres-cached STDB entity rows may be overwritten. */
   stdbCacheTtlMs: number;
-  /**
-   * Optional image URL for `/forge quest board` (HTTPS). Shown as a wide banner above the text.
-   */
   questBoardBannerUrl: string | undefined;
 };
 

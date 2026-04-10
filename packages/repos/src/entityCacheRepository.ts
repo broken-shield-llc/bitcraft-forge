@@ -1,6 +1,5 @@
 import type { BuildingKind } from "@forge/domain";
 
-/** Row counts in Postgres mirror tables (for `/forge health`). */
 export type EntityCacheTableCounts = {
   itemDesc: number;
   claimState: number;
@@ -23,9 +22,7 @@ export interface EntityCacheRepository {
     ttlMs: number
   ): Promise<void>;
   deleteItem(itemId: number): Promise<void>;
-  /** Resolved item display names for ids present in the cache (batch). */
   getItemNames(itemIds: number[]): Promise<Map<number, string>>;
-  /** `ItemDesc.rarity.tag` (e.g. "Legendary") when cached (batch). */
   getItemRarityTags(itemIds: number[]): Promise<Map<number, string>>;
 
   upsertClaim(
@@ -34,9 +31,7 @@ export interface EntityCacheRepository {
     ttlMs: number
   ): Promise<void>;
   deleteClaim(claimEntityId: string): Promise<void>;
-  /** Claim display name when cached. */
   getClaimName(claimEntityId: string): Promise<string | undefined>;
-  /** Claim display name for the building's claim (via `building_state.claimEntityId`). */
   getClaimNameForBuilding(
     buildingEntityId: string
   ): Promise<string | undefined>;
@@ -47,7 +42,6 @@ export interface EntityCacheRepository {
     ttlMs: number
   ): Promise<void>;
   deleteBuilding(buildingEntityId: string): Promise<void>;
-  /** Short summary when cached (claim id, description id). */
   getBuildingSummary(buildingEntityId: string): Promise<string | undefined>;
 
   upsertBuildingDesc(
@@ -84,15 +78,11 @@ export interface EntityCacheRepository {
     ttlMs: number
   ): Promise<void>;
   deleteInventoryState(inventoryEntityId: string): Promise<void>;
-  /**
-   * Per shop (`ownerEntityId`): whether any `inventory_state` row is cached,
-   * and aggregated item quantities across all inventory rows for that owner.
-   */
+  /** Per-shop inventory cache: presence flag + aggregated item quantities. */
   getInventoryBoardSnapshotForOwners(
     ownerEntityIds: string[]
   ): Promise<Map<string, { hasData: boolean; totals: Map<number, number> }>>;
 
-  /** Maps SpacetimeDB `Identity` hex → traveler `entityId` (from `user_state`). */
   upsertUserStateMapping(
     identityHex: string,
     travelerEntityId: string,
@@ -100,7 +90,6 @@ export interface EntityCacheRepository {
   ): Promise<void>;
   deleteUserStateMapping(identityHex: string): Promise<void>;
 
-  /** Traveler `entityId` → in-game username (`player_username_state`). */
   upsertPlayerUsername(
     travelerEntityId: string,
     username: string,
@@ -108,11 +97,9 @@ export interface EntityCacheRepository {
   ): Promise<void>;
   deletePlayerUsername(travelerEntityId: string): Promise<void>;
 
-  /** Resolved username when both `user_state` and `player_username_state` rows are cached. */
   getTravelerUsernameForIdentity(
     identityHex: string
   ): Promise<string | undefined>;
 
-  /** Counts rows in each `stdb_*_cache` table. */
   getEntityCacheTableCounts(): Promise<EntityCacheTableCounts>;
 }

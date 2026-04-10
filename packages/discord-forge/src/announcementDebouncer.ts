@@ -1,8 +1,5 @@
 export type DebouncedFn = () => void | Promise<void>;
 
-/**
- * Coalesces rapid updates per logical key (e.g. Discord guild + quest key).
- */
 export function createKeyedDebouncer(ms: number) {
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -14,7 +11,7 @@ export function createKeyedDebouncer(ms: number) {
       setTimeout(() => {
         timers.delete(key);
         void Promise.resolve(run()).catch(() => {
-          /* caller logs */
+          void 0;
         });
       }, ms)
     );

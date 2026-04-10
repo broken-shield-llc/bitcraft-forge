@@ -3,9 +3,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/**
- * Ascend from `startDir` looking for `.env` (same idea as Vite / many CLIs).
- */
 function findEnvPath(startDir: string, maxDepth: number): string | undefined {
   let dir = resolve(startDir);
   for (let i = 0; i < maxDepth; i++) {
@@ -18,9 +15,6 @@ function findEnvPath(startDir: string, maxDepth: number): string | undefined {
   return undefined;
 }
 
-/**
- * Apply parsed entries like `dotenv.config()` with default `override: false`.
- */
 function applyParsed(parsed: Record<string, string>): void {
   for (const [key, value] of Object.entries(parsed)) {
     if (value === undefined) continue;
@@ -29,13 +23,7 @@ function applyParsed(parsed: Record<string, string>): void {
   }
 }
 
-/**
- * Load `.env` from the first path found by walking up from:
- * 1. This file's directory (e.g. `packages/config/src` → monorepo root)
- * 2. `process.cwd()` (often `apps/forge` when using `pnpm --filter forge dev`)
- *
- * Strips a UTF-8 BOM if present so the first line parses correctly.
- */
+/** Walks up from this package and from `cwd` to find `.env`; strips UTF-8 BOM. */
 export function loadDotenv(): void {
   const fromFile = dirname(fileURLToPath(import.meta.url));
   const fromCwd = process.cwd();
