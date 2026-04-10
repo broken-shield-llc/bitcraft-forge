@@ -25,10 +25,14 @@ function applyParsed(parsed: Record<string, string>): void {
 
 function isContainerizedProduction(env: NodeJS.ProcessEnv = process.env): boolean {
   const isProd = env.NODE_ENV === "production";
-  const inEcs =
+  const explicit = env.FORGE_CONTAINERIZED === "1";
+  const ecsMetadata =
     typeof env.ECS_CONTAINER_METADATA_URI_V4 === "string" ||
     typeof env.ECS_CONTAINER_METADATA_URI === "string";
-  const inContainer = env.FORGE_CONTAINERIZED === "1" || inEcs;
+  const execEnv = env.AWS_EXECUTION_ENV;
+  const ecsExecution =
+    typeof execEnv === "string" && execEnv.startsWith("AWS_ECS");
+  const inContainer = explicit || ecsMetadata || ecsExecution;
   return isProd && inContainer;
 }
 
