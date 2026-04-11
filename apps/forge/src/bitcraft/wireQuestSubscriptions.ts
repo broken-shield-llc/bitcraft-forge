@@ -78,7 +78,6 @@ export function wireQuestSubscriptions(
   } = deps;
   const travelerDescById = new Map<number, TravelerTradeOrderDesc>();
   let shopToScopes = new Map<string, Set<string>>();
-  let subscriptionsReady = 0;
   let dataReady = false;
   /** Quest keys present in the initial `trade_order_state` snapshot (replay inserts match these). */
   const keysFromHydration = new Set<string>();
@@ -526,9 +525,7 @@ export function wireQuestSubscriptions(
     onTradeRemoved(row);
   });
 
-  const markSubscriptionApplied = (): void => {
-    subscriptionsReady += 1;
-    if (subscriptionsReady < 2) return;
+  const markQuestProjectionReady = (): void => {
     try {
       for (const row of connection.db.travelerTradeOrderDesc.iter()) {
         travelerDescById.set(row.id, row);
@@ -553,15 +550,20 @@ export function wireQuestSubscriptions(
     onQuestProjectionReady?.();
   };
 
+  // Subscribe sequentially (small table first) so snapshot decode + onInsert work does not
+  // overlap both heavy queries; setImmediate defers the next subscribe until after the
+  // current SubscribeApplied row callbacks finish.
   connection
     .subscriptionBuilder()
-    .onApplied(markSubscriptionApplied)
+    .onApplied(() => {
+      setImmediate(() => {
+        connection
+          .subscriptionBuilder()
+          .onApplied(markQuestProjectionReady)
+          .subscribe("SELECT * FROM trade_order_state");
+      });
+    })
     .subscribe("SELECT * FROM traveler_trade_order_desc");
-
-  connection
-    .subscriptionBuilder()
-    .onApplied(markSubscriptionApplied)
-    .subscribe("SELECT * FROM trade_order_state");
 
   connection.reducers.onBarterStallOrderAccept((ctx, request) => {
     if (ctx.event.status.tag !== "Committed") return;
