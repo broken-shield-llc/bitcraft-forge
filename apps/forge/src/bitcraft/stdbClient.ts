@@ -119,13 +119,14 @@ export function startStdb(
             "Quest projection subscriptions applied",
             `trade_order_state rows=${tradeOrderRows} quest_projection_ready=true`
           );
+          // After traveler + trade_order_state snapshots, start entity tables one-by-one
+          // so we never overlap that heavy load with eight parallel cache subscriptions.
+          wireStdbEntityCache(connection, {
+            config,
+            log,
+            entityCacheRepo: deps.entityCacheRepo,
+          });
         },
-      });
-
-      wireStdbEntityCache(connection, {
-        config,
-        log,
-        entityCacheRepo: deps.entityCacheRepo,
       });
     })
     .withToken(config.bitcraftJwt)

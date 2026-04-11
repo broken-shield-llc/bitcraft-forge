@@ -191,67 +191,40 @@ export function wireStdbEntityCache(
       );
   });
 
-  let subsReady = 0;
-  const onSubApplied = (): void => {
-    subsReady += 1;
-    if (subsReady < 8) return;
-    try {
-      for (const row of connection.db.itemDesc.iter()) syncItem(row);
-      for (const row of connection.db.claimState.iter()) syncClaim(row);
-      for (const row of connection.db.buildingState.iter()) syncBuilding(row);
-      for (const row of connection.db.buildingDesc.iter()) syncBuildingDesc(row);
-      for (const row of connection.db.buildingNicknameState.iter())
-        syncBuildingNickname(row);
-      for (const row of connection.db.inventoryState.iter()) syncInventory(row);
-      for (const row of connection.db.userState.iter()) syncUserState(row);
-      for (const row of connection.db.playerUsernameState.iter())
-        syncPlayerUsername(row);
-    } catch (e: unknown) {
-      log.warn("stdb entity cache initial iter failed", e);
+  // One subscription at a time: avoids overlapping BSATN decode + client-cache work from
+  // eight simultaneous snapshots. setImmediate defers the next subscribe until after the
+  // current SubscribeApplied row callbacks complete.
+  const ENTITY_CACHE_QUERIES = [
+    "SELECT * FROM item_desc",
+    "SELECT * FROM claim_state",
+    "SELECT * FROM building_state",
+    "SELECT * FROM building_desc",
+    "SELECT * FROM building_nickname_state",
+    "SELECT * FROM inventory_state",
+    "SELECT * FROM user_state",
+    "SELECT * FROM player_username_state",
+  ] as const;
+
+  let entitySubIndex = 0;
+  const subscribeNextEntityTable = (): void => {
+    if (entitySubIndex >= ENTITY_CACHE_QUERIES.length) {
+      // SpacetimeDB TS SDK runs subscription `onApplied` before per-row onInsert
+      // callbacks. Rows are already in the client cache; no full-table iter sync.
+      log.info(
+        "STDB entity cache subscriptions ready",
+        `items=${connection.db.itemDesc.count()} claims=${connection.db.claimState.count()} buildings=${connection.db.buildingState.count()} buildingDescs=${connection.db.buildingDesc.count()} nicknames=${connection.db.buildingNicknameState.count()} inventories=${connection.db.inventoryState.count()} userStates=${connection.db.userState.count()} playerUsernames=${connection.db.playerUsernameState.count()}`
+      );
+      return;
     }
-    log.info(
-      "STDB entity cache subscriptions ready",
-      `items=${connection.db.itemDesc.count()} claims=${connection.db.claimState.count()} buildings=${connection.db.buildingState.count()} buildingDescs=${connection.db.buildingDesc.count()} nicknames=${connection.db.buildingNicknameState.count()} inventories=${connection.db.inventoryState.count()} userStates=${connection.db.userState.count()} playerUsernames=${connection.db.playerUsernameState.count()}`
-    );
+    const sql = ENTITY_CACHE_QUERIES[entitySubIndex];
+    entitySubIndex += 1;
+    connection
+      .subscriptionBuilder()
+      .onApplied(() => {
+        setImmediate(subscribeNextEntityTable);
+      })
+      .subscribe(sql);
   };
 
-  connection
-    .subscriptionBuilder()
-    .onApplied(onSubApplied)
-    .subscribe("SELECT * FROM item_desc");
-
-  connection
-    .subscriptionBuilder()
-    .onApplied(onSubApplied)
-    .subscribe("SELECT * FROM claim_state");
-
-  connection
-    .subscriptionBuilder()
-    .onApplied(onSubApplied)
-    .subscribe("SELECT * FROM building_state");
-
-  connection
-    .subscriptionBuilder()
-    .onApplied(onSubApplied)
-    .subscribe("SELECT * FROM building_desc");
-
-  connection
-    .subscriptionBuilder()
-    .onApplied(onSubApplied)
-    .subscribe("SELECT * FROM building_nickname_state");
-
-  connection
-    .subscriptionBuilder()
-    .onApplied(onSubApplied)
-    .subscribe("SELECT * FROM inventory_state");
-
-  connection
-    .subscriptionBuilder()
-    .onApplied(onSubApplied)
-    .subscribe("SELECT * FROM user_state");
-
-  connection
-    .subscriptionBuilder()
-    .onApplied(onSubApplied)
-    .subscribe("SELECT * FROM player_username_state");
+  subscribeNextEntityTable();
 }
