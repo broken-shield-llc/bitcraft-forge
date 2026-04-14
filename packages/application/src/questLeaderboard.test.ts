@@ -1,5 +1,44 @@
 import { describe, expect, it, vi } from "vitest";
-import { executeQuestLeaderboard } from "./questLeaderboard.js";
+import {
+  executeQuestLeaderboard,
+  executeQuestLeaderboardReset,
+} from "./questLeaderboard.js";
+
+describe("executeQuestLeaderboardReset", () => {
+  it("reports zero rows when nothing was deleted", async () => {
+    const deps = {
+      repo: {
+        clearQuestCompletionsForScope: vi.fn().mockResolvedValue(0),
+      },
+    };
+    const { content } = await executeQuestLeaderboardReset("g1", "c1", deps);
+    expect(content).toContain("no logged completion rows");
+    expect(deps.repo.clearQuestCompletionsForScope).toHaveBeenCalledWith(
+      "g1",
+      "c1"
+    );
+  });
+
+  it("reports singular row when one deleted", async () => {
+    const deps = {
+      repo: {
+        clearQuestCompletionsForScope: vi.fn().mockResolvedValue(1),
+      },
+    };
+    const { content } = await executeQuestLeaderboardReset("g1", "c1", deps);
+    expect(content).toContain("removed **1** logged completion row for");
+  });
+
+  it("reports plural rows when multiple deleted", async () => {
+    const deps = {
+      repo: {
+        clearQuestCompletionsForScope: vi.fn().mockResolvedValue(12),
+      },
+    };
+    const { content } = await executeQuestLeaderboardReset("g1", "c1", deps);
+    expect(content).toContain("removed **12** logged completion rows");
+  });
+});
 
 describe("executeQuestLeaderboard", () => {
   const entityCacheRepo = {

@@ -307,4 +307,20 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
       completions: Number(r.completions),
     }));
   }
+
+  async clearQuestCompletionsForScope(
+    discordGuildId: string,
+    forgeChannelId: string
+  ): Promise<number> {
+    const deleted = await this.db
+      .delete(schema.questCompletions)
+      .where(
+        and(
+          eq(schema.questCompletions.discordGuildId, discordGuildId),
+          eq(schema.questCompletions.forgeChannelId, forgeChannelId)
+        )
+      )
+      .returning({ id: schema.questCompletions.id });
+    return deleted.length;
+  }
 }

@@ -50,6 +50,30 @@ function leaderboardSubjectLine(
   return formatCompletionSubjectDisplay(subjectKey);
 }
 
+export type QuestLeaderboardResetDeps = {
+  repo: Pick<GuildConfigRepository, "clearQuestCompletionsForScope">;
+};
+
+export async function executeQuestLeaderboardReset(
+  discordGuildId: string,
+  forgeChannelId: string,
+  deps: QuestLeaderboardResetDeps
+): Promise<{ content: string }> {
+  const removed = await deps.repo.clearQuestCompletionsForScope(
+    discordGuildId,
+    forgeChannelId
+  );
+  if (removed === 0) {
+    return {
+      content:
+        "**Quest leaderboard** reset: there were no logged completion rows for this channel.",
+    };
+  }
+  return {
+    content: `**Quest leaderboard** reset: removed **${removed}** logged completion row${removed === 1 ? "" : "s"} for this channel.`,
+  };
+}
+
 export async function executeQuestLeaderboard(
   discordGuildId: string,
   forgeChannelId: string,

@@ -17,6 +17,7 @@ import {
   executeForgeEnable,
   executeQuestBoardList,
   executeQuestLeaderboard,
+  executeQuestLeaderboardReset,
   executeSetAnnouncementChannel,
   forgeChannelNotEnabledMessage,
 } from "@forge/application";
@@ -208,6 +209,24 @@ export async function handleForgeInteraction(
     };
 
     if (group === "quest") {
+      if (sub === "reset-leaderboard") {
+        if (!requireManageGuild(interaction)) {
+          await editReplyCatchUnknown(interaction, {
+            content:
+              "You need **Manage Server** to reset the quest leaderboard for a channel.",
+          });
+          return;
+        }
+        if (!(await replyIfNotEnabledAfterDefer())) return;
+        const { content } = await executeQuestLeaderboardReset(
+          guildId,
+          forgeChannelId,
+          { repo: ctx.repo }
+        );
+        await editReplyCatchUnknown(interaction, { content });
+        return;
+      }
+
       if (!(await replyIfNotEnabledAfterDefer())) return;
 
       if (sub === "board") {

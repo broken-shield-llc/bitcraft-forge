@@ -41,6 +41,13 @@ export function buildForgeSlashCommand(commandName: string) {
               "Top members by logged quest completions in this channel"
             )
         )
+        .addSubcommand((s) =>
+          s
+            .setName("reset-leaderboard")
+            .setDescription(
+              "Clear logged quest completions for this channel (Manage Server)"
+            )
+        )
     )
     .addSubcommandGroup((g) =>
       g
