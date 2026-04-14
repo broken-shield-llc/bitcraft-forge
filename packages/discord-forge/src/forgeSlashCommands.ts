@@ -7,7 +7,9 @@ export function buildForgeSlashCommand(commandName: string) {
     .addSubcommand((s) =>
       s
         .setName("health")
-        .setDescription("Forge version and connection status (works in DMs)")
+        .setDescription(
+          "Forge technical status for operators (Manage Server; server text channel)"
+        )
     )
     .addSubcommand((s) =>
       s

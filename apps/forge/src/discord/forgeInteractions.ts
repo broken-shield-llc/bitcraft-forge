@@ -30,6 +30,7 @@ import {
 } from "../bitcraft/index.js";
 import {
   isUnknownInteractionError,
+  requireForgeChannelManage,
   requireManageGuild,
 } from "@forge/discord-forge";
 import {
@@ -115,6 +116,20 @@ export async function handleForgeInteraction(
   if (!group && sub === "health") {
     if (!(await deferEphemeralOrAbort(interaction))) return;
 
+    if (!interaction.inGuild() || !interaction.guildId) {
+      const cmd = ctx.config.discordCommandName;
+      await editReplyCatchUnknown(interaction, {
+        content: `Use \`/${cmd} health\` in a server text channel.`,
+      });
+      return;
+    }
+    if (!requireManageGuild(interaction)) {
+      await editReplyCatchUnknown(interaction, {
+        content: "You need **Manage Server** to view Forge health.",
+      });
+      return;
+    }
+
     const snap = getStdbConnectionSnapshot();
     const stdb = {
       connected: snap.connected,
@@ -143,7 +158,7 @@ export async function handleForgeInteraction(
     if (!(await deferEphemeralOrAbort(interaction))) return;
     const cmd = ctx.config.discordCommandName;
     await editReplyCatchUnknown(interaction, {
-      content: `Use \`/${cmd}\` in a server (except \`/${cmd} health\`, which works here).`,
+      content: `Use \`/${cmd}\` in a server text channel.`,
     });
     return;
   }
@@ -210,10 +225,10 @@ export async function handleForgeInteraction(
 
     if (group === "quest") {
       if (sub === "reset-leaderboard") {
-        if (!requireManageGuild(interaction)) {
+        if (!requireForgeChannelManage(interaction)) {
           await editReplyCatchUnknown(interaction, {
             content:
-              "You need **Manage Server** to reset the quest leaderboard for a channel.",
+              "You need **Manage Server** or **Manage Channels** to reset the quest leaderboard for this channel.",
           });
           return;
         }
@@ -278,10 +293,10 @@ export async function handleForgeInteraction(
     }
 
     if (group === "channel" && sub === "set") {
-      if (!requireManageGuild(interaction)) {
+      if (!requireForgeChannelManage(interaction)) {
         await editReplyCatchUnknown(interaction, {
           content:
-            "You need **Manage Server** to set announcement channels.",
+            "You need **Manage Server** or **Manage Channels** to set where barter and quest messages are posted.",
         });
         return;
       }
@@ -323,12 +338,14 @@ export async function handleForgeInteraction(
       return;
     }
 
-    if (!requireManageGuild(interaction)) {
-      await editReplyCatchUnknown(interaction, {
-        content:
-          "You need the **Manage Server** permission to configure FORGE monitors for this server.",
-      });
-      return;
+    if (group === "claim" || group === "building") {
+      if (!requireForgeChannelManage(interaction)) {
+        await editReplyCatchUnknown(interaction, {
+          content:
+            "You need **Manage Server** or **Manage Channels** to configure claim and building watches for this channel.",
+        });
+        return;
+      }
     }
 
     if (group === "claim") {

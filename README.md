@@ -51,25 +51,28 @@ Rows from the entity tables above are upserted into local cache tables (see `pac
 
 Commands are registered when the bot starts: **guild** commands if `FORGE_DISCORD_GUILD_ID` is set, otherwise **global** commands (Discord can take up to about an hour to propagate global commands).
 
-Unless noted, use commands in a **server text channel**. **Manage Server** is Discord’s permission name for the API’s “manage guild” check.
+Unless noted, use commands in a **server text channel**.
+
+**Permissions:** **Manage Server** is required for `health` (operator diagnostics), `enable`, and `disable`. For everything else that configures this channel’s Forge scope (claims, buildings, where messages post, resetting the quest leaderboard), members need **Manage Server** *or* **Manage Channels** so channel moderators can run settlement tools without full server admin. The quest board and leaderboard are **Anyone** where marked below (no mod permission).
 
 
 | Command                    | Description                                                                  | Permission                       |
 | -------------------------- | ---------------------------------------------------------------------------- | -------------------------------- |
-| `/forge health`            | Forge version and connection status (works in DMs)                           | Anyone (ephemeral; works in DMs) |
+| `/forge health`            | Forge technical status for operators (version, links, cache counts)          | Manage Server                    |
 | `/forge enable`            | Turn on Forge for this channel's scope                                       | Manage Server                    |
 | `/forge disable`           | Turn off Forge for this channel's scope and clear its data                    | Manage Server                    |
-| `/forge quest board`       | Active barter offers for this channel's scope                                 | Anyone (channel must be enabled) |
-| `/forge quest leaderboard` | Quest leaderboard for this channel's scope                                  | Anyone (channel must be enabled) |
-| `/forge quest reset-leaderboard` | Clear the quest leaderboard for this channel's scope                    | Manage Server (channel must be enabled) |
-| `/forge channel set`       | Set or clear where barter and quest messages post for this channel's scope    | Manage Server                    |
-| `/forge claim add`         | Watch a claim for this channel's scope (`claim_id`)                          | Manage Server                    |
-| `/forge claim remove`      | Stop watching a claim for this channel's scope                               | Manage Server                    |
-| `/forge claim list`        | Claims watched for this channel's scope                                        | Manage Server                    |
-| `/forge building add`      | Watch a barter building for this channel's scope (`building_id`)               | Manage Server                    |
-| `/forge building remove`   | Stop watching a building for this channel's scope                              | Manage Server                    |
-| `/forge building list`     | Barter buildings watched for this channel's scope                              | Manage Server                    |
+| `/forge quest board`†       | Active barter offers for this channel's scope                                 | Anyone                           |
+| `/forge quest leaderboard`† | Quest leaderboard for this channel's scope                                   | Anyone                           |
+| `/forge quest reset-leaderboard`† | Clear the quest leaderboard for this channel's scope                     | Manage Server or Manage Channels |
+| `/forge channel set`†       | Set or clear where barter and quest messages post for this channel's scope    | Manage Server or Manage Channels |
+| `/forge claim add`†         | Watch a claim for this channel's scope (`claim_id`)                          | Manage Server or Manage Channels |
+| `/forge claim remove`†      | Stop watching a claim for this channel's scope                               | Manage Server or Manage Channels |
+| `/forge claim list`†        | Claims watched for this channel's scope                                      | Manage Server or Manage Channels |
+| `/forge building add`†      | Watch a barter building for this channel's scope (`building_id`)             | Manage Server or Manage Channels |
+| `/forge building remove`†   | Stop watching a building for this channel's scope                              | Manage Server or Manage Channels |
+| `/forge building list`†     | Barter buildings watched for this channel's scope                            | Manage Server or Manage Channels |
 
+**† Requires Forge enabled for this channel** — Run `/forge enable` in this channel first (that command needs **Manage Server**). Applies to every command row marked with † above.
 
 The quest board may include buttons or selects; the bot uses the `Guilds` intent only.
 

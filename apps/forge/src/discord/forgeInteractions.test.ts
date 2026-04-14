@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { MessageFlags } from "discord.js";
+import { MessageFlags, PermissionFlagsBits } from "discord.js";
 import type { ChatInputCommandInteraction } from "discord.js";
 import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
@@ -38,6 +38,11 @@ function createHealthInteraction(): ChatInputCommandInteraction {
   });
   return {
     commandName: "forge",
+    inGuild: () => true,
+    guildId: "guild1",
+    memberPermissions: {
+      has: (bit: bigint) => bit === PermissionFlagsBits.ManageGuild,
+    },
     get deferred() {
       return state.deferred;
     },
