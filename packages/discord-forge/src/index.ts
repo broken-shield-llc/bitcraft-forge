@@ -2,6 +2,7 @@ export { createKeyedDebouncer, type DebouncedFn } from "./announcementDebouncer.
 export { buildForgeSlashCommand } from "./forgeSlashCommands.js";
 export {
   isUnknownInteractionError,
+  requireForgeChannelManage,
   requireManageGuild,
 } from "./permissions.js";
 export {
