@@ -56,18 +56,19 @@ Unless noted, use commands in a **server text channel**. **Manage Server** is Di
 
 | Command                    | Description                                                                  | Permission                       |
 | -------------------------- | ---------------------------------------------------------------------------- | -------------------------------- |
-| `/forge health`            | Build info, SpacetimeDB connection status, Postgres cache counts             | Anyone (ephemeral; works in DMs) |
-| `/forge enable`            | Enable FORGE for the **current channel**                                     | Manage Server                    |
-| `/forge disable`           | Disable FORGE for this channel and clear its monitors / leaderboard data     | Manage Server                    |
-| `/forge quest board`       | Active barter offers for monitored buildings (uses live trade state + cache) | Anyone (channel must be enabled) |
-| `/forge quest leaderboard` | Top members by logged completions for this channel                           | Anyone (channel must be enabled) |
-| `/forge channel set`       | Set or clear the channel for barter / quest announcement embeds              | Manage Server                    |
-| `/forge claim add`         | Start monitoring a claim (`claim_id`)                                        | Manage Server                    |
-| `/forge claim remove`      | Stop monitoring a claim                                                      | Manage Server                    |
-| `/forge claim list`        | List monitored claims for this channel                                       | Manage Server                    |
-| `/forge building add`      | Start monitoring a barter building (`building_id`)                           | Manage Server                    |
-| `/forge building remove`   | Stop monitoring a building                                                   | Manage Server                    |
-| `/forge building list`     | List monitored buildings for this channel                                    | Manage Server                    |
+| `/forge health`            | Forge version and connection status (works in DMs)                           | Anyone (ephemeral; works in DMs) |
+| `/forge enable`            | Turn on Forge for this channel's scope                                       | Manage Server                    |
+| `/forge disable`           | Turn off Forge for this channel's scope and clear its data                    | Manage Server                    |
+| `/forge quest board`       | Active barter offers for this channel's scope                                 | Anyone (channel must be enabled) |
+| `/forge quest leaderboard` | Quest leaderboard for this channel's scope                                  | Anyone (channel must be enabled) |
+| `/forge quest reset-leaderboard` | Clear the quest leaderboard for this channel's scope                    | Manage Server (channel must be enabled) |
+| `/forge channel set`       | Set or clear where barter and quest messages post for this channel's scope    | Manage Server                    |
+| `/forge claim add`         | Watch a claim for this channel's scope (`claim_id`)                          | Manage Server                    |
+| `/forge claim remove`      | Stop watching a claim for this channel's scope                               | Manage Server                    |
+| `/forge claim list`        | Claims watched for this channel's scope                                        | Manage Server                    |
+| `/forge building add`      | Watch a barter building for this channel's scope (`building_id`)               | Manage Server                    |
+| `/forge building remove`   | Stop watching a building for this channel's scope                              | Manage Server                    |
+| `/forge building list`     | Barter buildings watched for this channel's scope                              | Manage Server                    |
 
 
 The quest board may include buttons or selects; the bot uses the `Guilds` intent only.

@@ -12,7 +12,8 @@ describe("executeQuestLeaderboardReset", () => {
       },
     };
     const { content } = await executeQuestLeaderboardReset("g1", "c1", deps);
-    expect(content).toContain("no logged completion rows");
+    expect(content).toContain("**Quest Leaderboard**");
+    expect(content).toContain("already empty");
     expect(deps.repo.clearQuestCompletionsForScope).toHaveBeenCalledWith(
       "g1",
       "c1"
@@ -26,7 +27,9 @@ describe("executeQuestLeaderboardReset", () => {
       },
     };
     const { content } = await executeQuestLeaderboardReset("g1", "c1", deps);
-    expect(content).toContain("removed **1** logged completion row for");
+    expect(content).toContain("**Quest Leaderboard**");
+    expect(content).toContain("reset");
+    expect(content).toContain("**1** quest completion");
   });
 
   it("reports plural rows when multiple deleted", async () => {
@@ -36,7 +39,7 @@ describe("executeQuestLeaderboardReset", () => {
       },
     };
     const { content } = await executeQuestLeaderboardReset("g1", "c1", deps);
-    expect(content).toContain("removed **12** logged completion rows");
+    expect(content).toContain("**12** quest completions");
   });
 });
 
@@ -53,7 +56,8 @@ describe("executeQuestLeaderboard", () => {
       entityCacheRepo,
     };
     const { content } = await executeQuestLeaderboard("g1", "c1", deps);
-    expect(content).toContain("No quest completions logged yet");
+    expect(content).toContain("**Quest Leaderboard**");
+    expect(content).toContain("No quest completions yet");
     expect(deps.repo.questLeaderboard).toHaveBeenCalledWith("g1", "c1", 10);
   });
 
@@ -70,9 +74,9 @@ describe("executeQuestLeaderboard", () => {
     const { content } = await executeQuestLeaderboard("g1", "c1", deps, {
       limit: 10,
     });
-    expect(content).toContain("**Quest leaderboard**");
+    expect(content).toContain("**Quest Leaderboard**");
     expect(content).toContain("1. <@123456789> — **5**");
-    expect(content).toContain("2. STDB `deadbeef` — **2**");
+    expect(content).toContain("2. Traveler — **2**");
     expect(deps.entityCacheRepo.getTravelerUsernameForIdentity).toHaveBeenCalledWith(
       "deadbeef"
     );

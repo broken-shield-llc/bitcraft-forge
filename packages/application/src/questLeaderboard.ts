@@ -1,4 +1,3 @@
-import { formatCompletionSubjectDisplay } from "@forge/domain";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
 
 export type QuestLeaderboardDeps = {
@@ -9,8 +8,11 @@ export type QuestLeaderboardDeps = {
   >;
 };
 
-const EMPTY_LEADERBOARD =
-  "No quest completions logged yet. Completing a barter at a **monitored** building records a completion automatically.";
+const TITLE = "**Quest Leaderboard**";
+
+function formatLeaderboardReply(body: string): string {
+  return `${TITLE}\n${body}`;
+}
 
 async function resolveStdbIdentityDisplayNames(
   entityCacheRepo: Pick<
@@ -41,13 +43,19 @@ async function resolveStdbIdentityDisplayNames(
   return out;
 }
 
-function leaderboardSubjectLine(
+function leaderboardPlayerLine(
   subjectKey: string,
-  stdbNameBySubject: Map<string, string>
+  nameBySubject: Map<string, string>
 ): string {
-  const named = stdbNameBySubject.get(subjectKey);
+  const named = nameBySubject.get(subjectKey);
   if (named) return named;
-  return formatCompletionSubjectDisplay(subjectKey);
+  if (subjectKey.startsWith("d:")) {
+    return `<@${subjectKey.slice(2)}>`;
+  }
+  if (subjectKey.startsWith("s:")) {
+    return "Traveler";
+  }
+  return subjectKey;
 }
 
 export type QuestLeaderboardResetDeps = {
@@ -65,12 +73,13 @@ export async function executeQuestLeaderboardReset(
   );
   if (removed === 0) {
     return {
-      content:
-        "**Quest leaderboard** reset: there were no logged completion rows for this channel.",
+      content: formatLeaderboardReply("The board was already empty."),
     };
   }
   return {
-    content: `**Quest leaderboard** reset: removed **${removed}** logged completion row${removed === 1 ? "" : "s"} for this channel.`,
+    content: formatLeaderboardReply(
+      `The leaderboard has been reset. **${removed}** quest ${removed === 1 ? "completion" : "completions"} cleared.`
+    ),
   };
 }
 
@@ -87,18 +96,17 @@ export async function executeQuestLeaderboard(
     limit
   );
   if (rows.length === 0) {
-    return { content: EMPTY_LEADERBOARD };
+    return {
+      content: formatLeaderboardReply("No quest completions yet."),
+    };
   }
-  const stdbNameBySubject = await resolveStdbIdentityDisplayNames(
+  const nameBySubject = await resolveStdbIdentityDisplayNames(
     deps.entityCacheRepo,
     rows.map((r) => r.subjectKey)
   );
-  const body = [
-    "**Quest leaderboard** (logged completions; barter subjects show in-game names when cached)",
-    ...rows.map(
-      (r, i) =>
-        `${i + 1}. ${leaderboardSubjectLine(r.subjectKey, stdbNameBySubject)} — **${r.completions}**`
-    ),
-  ].join("\n");
-  return { content: body };
+  const lines = rows.map(
+    (r, i) =>
+      `${i + 1}. ${leaderboardPlayerLine(r.subjectKey, nameBySubject)} — **${r.completions}**`
+  );
+  return { content: formatLeaderboardReply(lines.join("\n")) };
 }
