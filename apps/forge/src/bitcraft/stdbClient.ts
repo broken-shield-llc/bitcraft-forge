@@ -4,6 +4,7 @@ import type { Logger } from "@forge/logger";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
 import type { Client } from "discord.js";
 import type { QuestOfferCache } from "./questOfferCache.js";
+import { reconnectDelayMs } from "./stdbReconnect.js";
 import { wireStdbEntityCache } from "./wireStdbEntityCache.js";
 import { wireQuestSubscriptions } from "./wireQuestSubscriptions.js";
 
@@ -70,37 +71,96 @@ export type StartStdbDeps = {
   questCache: QuestOfferCache;
 };
 
-/**
- * Starts a read-only SpacetimeDB client (BitCraft regional module).
- * Uses pre-generated BitCraft bindings + @clockworklabs/spacetimedb-sdk (see README).
- */
-export function startStdb(
+/** Bumped before each new `build()` so stale `onConnect` / `onDisconnect` handlers are ignored. */
+let connectionEpoch = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+/** Backoff tier for the next scheduled reconnect (reset on successful `onConnect`). */
+let reconnectAttempt = 0;
+/** True while a handshake is in progress for the latest epoch (blocks overlapping `build()`). */
+let stdbConnecting = false;
+let activeConnection: DbConnection | undefined;
+
+function clearReconnectTimer(): void {
+  if (reconnectTimer !== undefined) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = undefined;
+  }
+}
+
+function scheduleReconnect(
+  config: ForgeConfig,
+  log: Logger,
+  deps: StartStdbDeps,
+  reason: string
+): void {
+  clearReconnectTimer();
+  const tier = reconnectAttempt;
+  const delayMs = reconnectDelayMs(tier);
+  reconnectAttempt = Math.min(reconnectAttempt + 1, 24);
+  log.warn(
+    `SpacetimeDB will reconnect in ${Math.round(delayMs / 1000)}s (backoff tier ${tier})`,
+    reason
+  );
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = undefined;
+    openStdbConnection(config, log, deps);
+  }, delayMs);
+}
+
+function openStdbConnection(
   config: ForgeConfig,
   log: Logger,
   deps: StartStdbDeps
 ): void {
-  DbConnection.builder()
+  if (stdbConnecting) {
+    log.warn("SpacetimeDB connect skipped (already in progress)");
+    return;
+  }
+  stdbConnecting = true;
+
+  try {
+    activeConnection?.disconnect();
+  } catch {
+    // best-effort; replacement socket is opened below
+  }
+
+  connectionEpoch += 1;
+  const epoch = connectionEpoch;
+
+  const connection = DbConnection.builder()
     .withUri(config.bitcraftWsUri)
     .withModuleName(config.bitcraftModule)
     .onDisconnect(() => {
+      if (epoch !== connectionEpoch) return;
+      stdbConnecting = false;
       stdbSnapshot.connected = false;
       stdbSnapshot.questProjectionReady = false;
       log.warn("SpacetimeDB disconnected");
+      scheduleReconnect(config, log, deps, "disconnect");
     })
     .onConnectError((_ctx, err) => {
+      if (epoch !== connectionEpoch) return;
+      stdbConnecting = false;
       const msg = connectErrorMessage(err);
       const stored =
         msg.length > MAX_LAST_ERROR_LEN
           ? `${msg.slice(0, MAX_LAST_ERROR_LEN)}…`
           : msg;
       log.error("SpacetimeDB onConnectError", stored);
+      scheduleReconnect(config, log, deps, stored);
     })
-    .onConnect((connection, identity) => {
+    .onConnect((conn, identity) => {
+      if (epoch !== connectionEpoch) return;
+      stdbConnecting = false;
+      clearReconnectTimer();
+      reconnectAttempt = 0;
       stdbSnapshot.connected = true;
       stdbSnapshot.questProjectionReady = false;
       log.info("SpacetimeDB connected", identity.toHexString());
 
-      wireQuestSubscriptions(connection, {
+      deps.questCache.clear();
+
+      wireQuestSubscriptions(conn, {
         config,
         log,
         repo: deps.repo,
@@ -108,10 +168,11 @@ export function startStdb(
         getDiscordClient: deps.getDiscordClient,
         questCache: deps.questCache,
         onQuestProjectionReady: () => {
+          if (epoch !== connectionEpoch) return;
           stdbSnapshot.questProjectionReady = true;
           let tradeOrderRows = 0;
           try {
-            tradeOrderRows = connection.db.tradeOrderState.count();
+            tradeOrderRows = conn.db.tradeOrderState.count();
           } catch {
             void 0;
           }
@@ -121,7 +182,7 @@ export function startStdb(
           );
           // After traveler + trade_order_state snapshots, start entity tables one-by-one
           // so we never overlap that heavy load with eight parallel cache subscriptions.
-          wireStdbEntityCache(connection, {
+          wireStdbEntityCache(conn, {
             config,
             log,
             entityCacheRepo: deps.entityCacheRepo,
@@ -131,4 +192,20 @@ export function startStdb(
     })
     .withToken(config.bitcraftJwt)
     .build();
+
+  activeConnection = connection;
+}
+
+/**
+ * Starts a read-only SpacetimeDB client (BitCraft regional module).
+ * Uses pre-generated BitCraft bindings + @clockworklabs/spacetimedb-sdk (see README).
+ * Reconnects after maintenance or network loss with exponential backoff and jitter.
+ */
+export function startStdb(
+  config: ForgeConfig,
+  log: Logger,
+  deps: StartStdbDeps
+): void {
+  clearReconnectTimer();
+  openStdbConnection(config, log, deps);
 }

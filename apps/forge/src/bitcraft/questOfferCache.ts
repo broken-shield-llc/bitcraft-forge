@@ -19,6 +19,11 @@ export class QuestOfferCache implements QuestOfferReadPort {
     this.byKey.delete(questKey);
   }
 
+  /** Clears all offers (e.g. before re-subscribing after a SpacetimeDB reconnect). */
+  clear(): void {
+    this.byKey.clear();
+  }
+
   values(): QuestOfferSnapshot[] {
     return [...this.byKey.values()];
   }
