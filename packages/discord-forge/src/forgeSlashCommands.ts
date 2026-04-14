@@ -3,59 +3,58 @@ import { ChannelType, SlashCommandBuilder } from "discord.js";
 export function buildForgeSlashCommand(commandName: string) {
   return new SlashCommandBuilder()
     .setName(commandName)
-    .setDescription("FORGE — Flow Orchestration & Relay for Game Events")
+    .setDescription("BitCraft barter boards, quest leaderboard, and settlement alerts in Discord")
     .addSubcommand((s) =>
       s
         .setName("health")
-        .setDescription("Build info and SpacetimeDB connection status")
+        .setDescription("Forge version and connection status (works in DMs)")
     )
     .addSubcommand((s) =>
       s
         .setName("enable")
-        .setDescription(
-          "Enable BitCraft Forge for this channel (separate config per channel)"
-        )
+        .setDescription("Turn on Forge for this channel's scope")
     )
     .addSubcommand((s) =>
       s
         .setName("disable")
-        .setDescription(
-          "Disable BitCraft Forge for this channel and remove its monitors / leaderboard data"
-        )
+        .setDescription("Turn off Forge for this channel's scope and clear its data")
     )
     .addSubcommandGroup((g) =>
       g
         .setName("quest")
-        .setDescription("Barter quest board and leaderboard")
+        .setDescription("Quest board and leaderboard for this channel's scope")
         .addSubcommand((s) =>
           s
             .setName("board")
-            .setDescription(
-              "Show active barter offers for monitored buildings (from SpacetimeDB cache)"
-            )
+            .setDescription("Active barter offers for this channel's scope")
         )
         .addSubcommand((s) =>
           s
             .setName("leaderboard")
+            .setDescription("Quest leaderboard for this channel's scope")
+        )
+        .addSubcommand((s) =>
+          s
+            .setName("reset-leaderboard")
             .setDescription(
-              "Top members by logged quest completions in this channel"
+              "Clear the quest leaderboard for this channel's scope"
             )
         )
     )
     .addSubcommandGroup((g) =>
       g
         .setName("channel")
-        .setDescription(
-          "Where FORGE posts barter announcements for this channel’s scope"
-        )
+        .setDescription("Barter and quest message channel for this channel's scope")
         .addSubcommand((s) =>
           s
             .setName("set")
-            .setDescription("Set the channel for debounced barter / quest embeds")
+            .setDescription(
+              "Set or clear where barter and quest messages post for this channel's scope"
+            )
             .addChannelOption((o) =>
               o
                 .setName("announcements")
-                .setDescription("Text channel (omit to clear)")
+                .setDescription("Text or announcement channel (omit to clear)")
                 .addChannelTypes(
                   ChannelType.GuildText,
                   ChannelType.GuildAnnouncement
@@ -67,71 +66,65 @@ export function buildForgeSlashCommand(commandName: string) {
     .addSubcommandGroup((g) =>
       g
         .setName("claim")
-        .setDescription("Monitor BitCraft claims in this channel’s Forge scope")
+        .setDescription("Settlement claims watched for this channel's scope")
         .addSubcommand((s) =>
           s
             .setName("add")
-            .setDescription("Start monitoring a claim")
+            .setDescription("Watch a claim for this channel's scope")
             .addStringOption((o) =>
               o
                 .setName("claim_id")
-                .setDescription("BitCraft claim id")
+                .setDescription("Claim ID from the game")
                 .setRequired(true)
             )
         )
         .addSubcommand((s) =>
           s
             .setName("remove")
-            .setDescription("Stop monitoring a claim")
+            .setDescription("Stop watching a claim for this channel's scope")
             .addStringOption((o) =>
               o
                 .setName("claim_id")
-                .setDescription("BitCraft claim id")
+                .setDescription("Claim ID from the game")
                 .setRequired(true)
             )
         )
         .addSubcommand((s) =>
           s
             .setName("list")
-            .setDescription("List monitored claims for this channel’s Forge scope")
+            .setDescription("Claims watched for this channel's scope")
         )
     )
     .addSubcommandGroup((g) =>
       g
         .setName("building")
-        .setDescription(
-          "Monitor Barter Stalls or Barter Counters in this channel’s Forge scope"
-        )
+        .setDescription("Barter buildings watched for this channel's scope")
         .addSubcommand((s) =>
           s
             .setName("add")
-            .setDescription(
-              "Start monitoring a barter building (stall vs counter is detected from game data)"
-            )
+            .setDescription("Watch a barter building for this channel's scope")
             .addStringOption((o) =>
               o
                 .setName("building_id")
-                .setDescription("BitCraft building id")
+                .setDescription("Building ID from the game")
                 .setRequired(true)
             )
         )
         .addSubcommand((s) =>
           s
             .setName("remove")
-            .setDescription("Stop monitoring a building")
+            .setDescription("Stop watching a building for this channel's scope")
             .addStringOption((o) =>
               o
                 .setName("building_id")
-                .setDescription("BitCraft building id")
+                .setDescription("Building ID from the game")
                 .setRequired(true)
             )
         )
         .addSubcommand((s) =>
           s
             .setName("list")
-            .setDescription(
-              "List monitored buildings for this channel’s Forge scope"
-            )
+            .setDescription("Barter buildings watched for this channel's scope")
         )
     );
 }

@@ -39,5 +39,7 @@ export {
 } from "./questBoard.js";
 export {
   executeQuestLeaderboard,
+  executeQuestLeaderboardReset,
   type QuestLeaderboardDeps,
+  type QuestLeaderboardResetDeps,
 } from "./questLeaderboard.js";

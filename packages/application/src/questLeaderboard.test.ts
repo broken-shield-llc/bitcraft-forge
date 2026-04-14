@@ -1,5 +1,47 @@
 import { describe, expect, it, vi } from "vitest";
-import { executeQuestLeaderboard } from "./questLeaderboard.js";
+import {
+  executeQuestLeaderboard,
+  executeQuestLeaderboardReset,
+} from "./questLeaderboard.js";
+
+describe("executeQuestLeaderboardReset", () => {
+  it("reports zero rows when nothing was deleted", async () => {
+    const deps = {
+      repo: {
+        clearQuestCompletionsForScope: vi.fn().mockResolvedValue(0),
+      },
+    };
+    const { content } = await executeQuestLeaderboardReset("g1", "c1", deps);
+    expect(content).toContain("**Quest Leaderboard**");
+    expect(content).toContain("already empty");
+    expect(deps.repo.clearQuestCompletionsForScope).toHaveBeenCalledWith(
+      "g1",
+      "c1"
+    );
+  });
+
+  it("reports singular row when one deleted", async () => {
+    const deps = {
+      repo: {
+        clearQuestCompletionsForScope: vi.fn().mockResolvedValue(1),
+      },
+    };
+    const { content } = await executeQuestLeaderboardReset("g1", "c1", deps);
+    expect(content).toContain("**Quest Leaderboard**");
+    expect(content).toContain("reset");
+    expect(content).toContain("**1** quest completion");
+  });
+
+  it("reports plural rows when multiple deleted", async () => {
+    const deps = {
+      repo: {
+        clearQuestCompletionsForScope: vi.fn().mockResolvedValue(12),
+      },
+    };
+    const { content } = await executeQuestLeaderboardReset("g1", "c1", deps);
+    expect(content).toContain("**12** quest completions");
+  });
+});
 
 describe("executeQuestLeaderboard", () => {
   const entityCacheRepo = {
@@ -14,7 +56,8 @@ describe("executeQuestLeaderboard", () => {
       entityCacheRepo,
     };
     const { content } = await executeQuestLeaderboard("g1", "c1", deps);
-    expect(content).toContain("No quest completions logged yet");
+    expect(content).toContain("**Quest Leaderboard**");
+    expect(content).toContain("No quest completions yet");
     expect(deps.repo.questLeaderboard).toHaveBeenCalledWith("g1", "c1", 10);
   });
 
@@ -31,9 +74,9 @@ describe("executeQuestLeaderboard", () => {
     const { content } = await executeQuestLeaderboard("g1", "c1", deps, {
       limit: 10,
     });
-    expect(content).toContain("**Quest leaderboard**");
+    expect(content).toContain("**Quest Leaderboard**");
     expect(content).toContain("1. <@123456789> — **5**");
-    expect(content).toContain("2. STDB `deadbeef` — **2**");
+    expect(content).toContain("2. Traveler — **2**");
     expect(deps.entityCacheRepo.getTravelerUsernameForIdentity).toHaveBeenCalledWith(
       "deadbeef"
     );

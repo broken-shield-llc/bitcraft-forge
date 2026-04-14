@@ -95,4 +95,9 @@ export interface GuildConfigRepository {
     forgeChannelId: string,
     limit: number
   ): Promise<QuestLeaderboardRow[]>;
+  /** Deletes all quest completion rows for this guild + forge channel scope. */
+  clearQuestCompletionsForScope(
+    discordGuildId: string,
+    forgeChannelId: string
+  ): Promise<number>;
 }

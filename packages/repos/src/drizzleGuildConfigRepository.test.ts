@@ -83,6 +83,24 @@ describe("DrizzleGuildConfigRepository.recordQuestCompletion", () => {
   });
 });
 
+describe("DrizzleGuildConfigRepository.clearQuestCompletionsForScope", () => {
+  it("returns count of deleted rows from returning()", async () => {
+    const db = {
+      delete: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi
+            .fn()
+            .mockResolvedValue([{ id: "a" }, { id: "b" }, { id: "c" }]),
+        })),
+      })),
+    } as unknown as ForgeDb;
+    const repo = new DrizzleGuildConfigRepository(db);
+    const n = await repo.clearQuestCompletionsForScope("guild1", "forge-ch");
+    expect(n).toBe(3);
+    expect(db.delete).toHaveBeenCalled();
+  });
+});
+
 describe("DrizzleGuildConfigRepository.addBuilding", () => {
   it("returns duplicate when insert fails with unique violation (Drizzle-wrapped)", async () => {
     const repo = new DrizzleGuildConfigRepository(
