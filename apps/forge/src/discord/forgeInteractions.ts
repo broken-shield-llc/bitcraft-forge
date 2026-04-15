@@ -1,5 +1,4 @@
 import {
-  ChannelType,
   type ChatInputCommandInteraction,
   EmbedBuilder,
   type InteractionEditReplyOptions,
@@ -19,8 +18,9 @@ import {
   executeQuestBoardList,
   executeQuestLeaderboard,
   executeQuestLeaderboardReset,
-  executeSetAnnouncementChannel,
+  executeSetQuestAnnouncementTarget,
   forgeChannelNotEnabledMessage,
+  type QuestAnnouncementTargetKey,
 } from "@forge/application";
 import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
@@ -30,6 +30,7 @@ import {
   type QuestOfferCache,
 } from "../bitcraft/index.js";
 import {
+  isQuestAnnouncementChannelType,
   isUnknownInteractionError,
   requireForgeChannelManage,
   requireManageGuild,
@@ -163,20 +164,37 @@ export async function handleForgeInteraction(
       connected: snap.connected,
       questProjectionReady: snap.questProjectionReady,
     };
+    const discordMeta = {
+      commandName: ctx.config.discordCommandName,
+      slashGuildRegistrationId: ctx.config.discordGuildId,
+    };
     let content: string;
     try {
       const entityCacheCounts =
         await ctx.entityCacheRepo.getEntityCacheTableCounts();
-      content = buildForgeHealthContent({ stdb, entityCacheCounts });
+      content = buildForgeHealthContent({
+        stdb,
+        entityCacheCounts,
+        discordMeta,
+      });
     } catch (e: unknown) {
       ctx.log.warn("forge health cache counts failed", e);
-      content = [
-        "**FORGE**",
-        "",
-        ...forgeHealthStdbMarkdownLines(stdb),
-        "",
-        "Could not load Postgres cache counts (check DB and logs).",
-      ].join("\n");
+      content = buildForgeHealthContent({
+        stdb,
+        entityCacheCounts: {
+          itemDesc: 0,
+          claimState: 0,
+          buildingState: 0,
+          buildingDesc: 0,
+          buildingNickname: 0,
+          inventoryState: 0,
+          userState: 0,
+          playerUsername: 0,
+        },
+        cacheCountsErrorMessage:
+          "Could not load Postgres cache counts (check DB and logs).",
+        discordMeta,
+      });
     }
     await editReplyCatchUnknown(interaction, { content });
     return;
@@ -336,11 +354,14 @@ export async function handleForgeInteraction(
       }
       if (!(await replyIfNotEnabledAfterDefer())) return;
 
-      const ch = interaction.options.getChannel("announcements");
+      const targetRaw = interaction.options.getString("target") ?? "default";
+      const target = targetRaw as QuestAnnouncementTargetKey;
+      const ch = interaction.options.getChannel("channel");
       if (!ch) {
-        const { content } = await executeSetAnnouncementChannel(
+        const { content } = await executeSetQuestAnnouncementTarget(
           guildId,
           forgeChannelId,
+          target,
           null,
           {
             repo: ctx.repo,
@@ -350,18 +371,17 @@ export async function handleForgeInteraction(
         await editReplyCatchUnknown(interaction, { content });
         return;
       }
-      if (
-        ch.type !== ChannelType.GuildText &&
-        ch.type !== ChannelType.GuildAnnouncement
-      ) {
+      if (!isQuestAnnouncementChannelType(ch.type)) {
         await editReplyCatchUnknown(interaction, {
-          content: "Pick a text or announcement channel.",
+          content:
+            "Pick a text channel, announcement channel, or thread the bot can post in.",
         });
         return;
       }
-      const { content } = await executeSetAnnouncementChannel(
+      const { content } = await executeSetQuestAnnouncementTarget(
         guildId,
         forgeChannelId,
+        target,
         ch.id,
         {
           repo: ctx.repo,

@@ -109,6 +109,7 @@ describe("handleForgeInteraction /forge health", () => {
     expect(payload.content).toContain("SpacetimeDB connected: **true**");
     expect(payload.content).toContain("Quest projection ready: **true**");
     expect(payload.content).toContain("`item_desc`: **2**");
+    expect(payload.content).toContain("registered **globally**");
   });
 
   it("replies with STDB lines and error copy when cache counts throw", async () => {

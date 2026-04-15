@@ -21,7 +21,8 @@ export const discordGuilds = pgTable("discord_guilds", {
 
 /**
  * A Discord channel where `/forge enable` was run: own monitors, leaderboard, and announcements.
- * `announcementChannelId` null means quest/barter embeds are paused (`/forge channel set` cleared).
+ * `announcementChannelId` is the default target for quest embeds when per-kind overrides are unset.
+ * Per-kind columns override only that stream; all null + default null means paused.
  */
 export const forgeEnabledChannels = pgTable(
   "forge_enabled_channels",
@@ -31,6 +32,9 @@ export const forgeEnabledChannels = pgTable(
       .references(() => discordGuilds.discordGuildId, { onDelete: "cascade" }),
     discordChannelId: text("discord_channel_id").notNull(),
     announcementChannelId: text("announcement_channel_id"),
+    questAddedChannelId: text("quest_added_channel_id"),
+    questUpdatedChannelId: text("quest_updated_channel_id"),
+    questCompletionChannelId: text("quest_completion_channel_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

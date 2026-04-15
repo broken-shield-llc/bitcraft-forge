@@ -73,4 +73,39 @@ describe("buildForgeHealthContent", () => {
     expect(content).toContain("Quest projection ready: **false**");
     expect(content).toContain("`item_desc`: **0**");
   });
+
+  it("adds global Discord operator hint when discordMeta has no guild id", () => {
+    const content = buildForgeHealthContent({
+      stdb: sampleStdb,
+      entityCacheCounts: sampleCounts,
+      discordMeta: { commandName: "forge" },
+    });
+    expect(content).toContain("Discord: root **/forge**");
+    expect(content).toContain("registered **globally**");
+  });
+
+  it("adds guild-only Discord hint when slashGuildRegistrationId is set", () => {
+    const content = buildForgeHealthContent({
+      stdb: sampleStdb,
+      entityCacheCounts: sampleCounts,
+      discordMeta: {
+        commandName: "forge",
+        slashGuildRegistrationId: "123456789",
+      },
+    });
+    expect(content).toContain("guild `123456789` only");
+  });
+
+  it("uses cacheCountsErrorMessage instead of cache table block", () => {
+    const content = buildForgeHealthContent({
+      stdb: sampleStdb,
+      entityCacheCounts: sampleCounts,
+      cacheCountsErrorMessage: "Could not load counts.",
+      discordMeta: { commandName: "forge" },
+    });
+    expect(content).toContain("Could not load counts.");
+    expect(content).not.toContain("`item_desc`:");
+    expect(content).toContain("registered **globally**");
+    expect(content).not.toContain("Integrations");
+  });
 });

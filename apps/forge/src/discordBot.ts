@@ -69,7 +69,11 @@ export async function startDiscordBot(
         ),
         { body }
       );
-      log.info("Registered guild slash commands for FORGE_DISCORD_GUILD_ID");
+      log.info(
+        "Registered guild slash commands",
+        `guild_id=${config.discordGuildId}`,
+        "— /forge exists only in this server. Other servers will not see the command until you unset FORGE_DISCORD_GUILD_ID (global registration) or deploy with this id matching each target server."
+      );
     } else {
       await rest.put(Routes.applicationCommands(config.discordApplicationId), {
         body,

@@ -4,5 +4,9 @@ export {
   createDb,
   type ForgeDb,
 } from "./client.js";
-export { runMigrations } from "./runMigrate.js";
+export {
+  runMigrations,
+  summarizeDatabaseUrl,
+  type RunMigrationsOptions,
+} from "./runMigrate.js";
 export { isPgUniqueViolation, isPgDuplicateRelation } from "./pgErrors.js";

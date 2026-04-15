@@ -51,6 +51,10 @@ Rows from the entity tables above are upserted into local cache tables (see `pac
 
 Commands are registered when the bot starts: **guild** commands if `FORGE_DISCORD_GUILD_ID` is set, otherwise **global** commands (Discord can take up to about an hour to propagate global commands).
 
+**If `/forge` does not appear in a server:** the bot is probably using **guild-only** registration for a *different* guild id (see startup log `guild_id=…`). For a shared or friend’s server, **leave `FORGE_DISCORD_GUILD_ID` unset** so commands register **globally**, restart the bot, and wait for Discord to sync. Also confirm **Server Settings → Integrations → your app** has not restricted command use to roles you lack, and that the bot is a **public** application if others invite it.
+
+**If only admins (e.g. Manage Server) see `/forge`:** that pattern is almost always **Discord integration command permissions**, not Forge env. Someone with **Manage Server** should open **Server Settings → Integrations → (this bot)** and check **Manage** / command permissions: remove role restrictions that hide the app’s commands, or explicitly allow **@everyone** (or your role). Also check the **channel** (or category): **Permissions → Use Application Commands** must be allowed for you in the channel where you type `/forge`. After changing integration permissions, you may need to restart the Discord client or wait a short time for the command list to refresh.
+
 Unless noted, use commands in a **server text channel**.
 
 **Permissions:** **Manage Server** is required for `health` (operator diagnostics), `enable`, and `disable`. For everything else that configures this channel’s Forge scope (claims, buildings, where messages post, resetting the quest leaderboard), members need **Manage Server** *or* **Manage Channels** so channel moderators can run settlement tools without full server admin. The quest board and leaderboard are **Anyone** where marked below (no mod permission).

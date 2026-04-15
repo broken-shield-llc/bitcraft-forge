@@ -9,7 +9,8 @@
     "lint": "eslint src",
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "migrate-db": "tsx scripts/migrate-db.ts"
   },
   "dependencies": {
     "@clockworklabs/spacetimedb-sdk": "1.3.3",

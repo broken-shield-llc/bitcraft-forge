@@ -20,6 +20,26 @@ export type MonitoredBuildingScopePair = {
   buildingId: string;
 };
 
+/** Which quest Discord embed stream (routing picks column + fallback to default). */
+export type QuestAnnouncementKind = "new" | "update" | "completion";
+
+/** Which DB column was used for the resolved announcement target. */
+export type QuestAnnouncementRoutingSource =
+  | "default"
+  | "quest_added"
+  | "quest_updated"
+  | "quest_completion";
+
+export type QuestAnnouncementRouting = {
+  channelId: string;
+  source: QuestAnnouncementRoutingSource;
+};
+
+export type QuestAnnouncementOverrideTarget =
+  | "quest_added"
+  | "quest_updated"
+  | "quest_completion";
+
 export interface GuildConfigRepository {
   isForgeChannelEnabled(
     discordGuildId: string,
@@ -71,10 +91,30 @@ export interface GuildConfigRepository {
     forgeChannelId: string,
     channelId: string | null
   ): Promise<void>;
-  getAnnouncementChannel(
+  /**
+   * Per-kind override; null clears that column. Falls back to {@link setAnnouncementChannel} default in routing.
+   */
+  setQuestAnnouncementOverride(
     discordGuildId: string,
-    forgeChannelId: string
-  ): Promise<string | undefined>;
+    forgeChannelId: string,
+    target: QuestAnnouncementOverrideTarget,
+    channelId: string | null
+  ): Promise<void>;
+  /**
+   * Resolves where to post for this kind: override column if set, else `announcementChannelId`.
+   * Returns undefined if both are unset (paused for that stream).
+   */
+  getQuestAnnouncementRouting(
+    discordGuildId: string,
+    forgeChannelId: string,
+    kind: QuestAnnouncementKind
+  ): Promise<QuestAnnouncementRouting | undefined>;
+  /** Clears the DB column that supplied this routing (e.g. after Discord 50001/10003/50013). */
+  clearQuestAnnouncementRouting(
+    discordGuildId: string,
+    forgeChannelId: string,
+    source: QuestAnnouncementRoutingSource
+  ): Promise<void>;
 
   listMonitoredBuildingScopePairs(): Promise<MonitoredBuildingScopePair[]>;
   isBuildingMonitored(
