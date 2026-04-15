@@ -96,7 +96,7 @@ The quest board may include buttons or selects; the bot uses the `Guilds` intent
   - `FORGE_DISCORD_APPLICATION_ID` — Same application’s **Application ID** (same value as the OAuth2 “Client ID”).
   - `FORGE_DATABASE_URL` — PostgreSQL connection string.
   - `FORGE_BITCRAFT_WS_URI`, `FORGE_BITCRAFT_MODULE`, `FORGE_BITCRAFT_JWT` — BitCraft SpacetimeDB endpoint and session token.
-   Optional variables (debounce timings, quest banner URL, guild-scoped slash registration, etc.) are documented in `.env.example`.
+   Optional variables (debounce timings, quest board/leaderboard/completion banner URLs, guild-scoped slash registration, etc.) are documented in `.env.example`.
 3. **Start PostgreSQL** — For example, from the repo root: `docker compose up -d` using [docker-compose.yml](docker-compose.yml), then point `FORGE_DATABASE_URL` at that instance.
 4. **Run the app** — Migrations apply on startup.
 

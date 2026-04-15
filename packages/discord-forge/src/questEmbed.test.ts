@@ -77,7 +77,7 @@ describe("buildQuestOfferEmbed", () => {
 });
 
 describe("buildQuestCompletionEmbed", () => {
-  it("uses completion title, green color, trader, offer, request, stock", () => {
+  it("uses claim - building title, green color, trader, offer, request, stock", () => {
     const embed = buildQuestCompletionEmbed({
       claimName: "North",
       shopNickname: "Stall",
@@ -87,7 +87,7 @@ describe("buildQuestCompletionEmbed", () => {
       remainingStock: 0,
     });
     const j = embed.toJSON();
-    expect(j.title).toBe("Quest completed in North - Stall");
+    expect(j.title).toBe("North - Stall");
     expect(j.color).toBe(0x27ae60);
     expect(j.fields?.map((f) => f.name)).toEqual([
       "Trader",
@@ -113,4 +113,5 @@ describe("buildQuestCompletionEmbed", () => {
       "Request",
     ]);
   });
+
 });

@@ -1,6 +1,7 @@
 import {
   ChannelType,
   type ChatInputCommandInteraction,
+  EmbedBuilder,
   type InteractionEditReplyOptions,
   MessageFlags,
 } from "discord.js";
@@ -57,6 +58,33 @@ const claimDeps = (ctx: ForgeInteractionContext) => ({
   entityCacheRepo: ctx.entityCacheRepo,
   discordCommandName: ctx.config.discordCommandName,
 });
+
+const LEADERBOARD_DESC_MAX = 4096;
+const LEADERBOARD_EMBED_COLOR = 0x2b2d31;
+
+function stripLeaderboardTitleLine(text: string): string {
+  return text.replace(/^\*\*Quest Leaderboard\*\*\s*\n?/u, "");
+}
+
+function questLeaderboardEditPayload(
+  fullContent: string,
+  bannerUrl: string | undefined
+): InteractionEditReplyOptions {
+  const trimmed = bannerUrl?.trim();
+  if (!trimmed) return { content: fullContent };
+
+  let body = stripLeaderboardTitleLine(fullContent);
+  if (body.length > LEADERBOARD_DESC_MAX) {
+    body = body.slice(0, Math.max(0, LEADERBOARD_DESC_MAX - 1)) + "…";
+  }
+  const bannerEmbed = new EmbedBuilder()
+    .setColor(LEADERBOARD_EMBED_COLOR)
+    .setImage(trimmed);
+  const textEmbed = new EmbedBuilder()
+    .setColor(LEADERBOARD_EMBED_COLOR)
+    .setDescription(body);
+  return { content: "", embeds: [bannerEmbed, textEmbed] };
+}
 
 const enableDeps = (ctx: ForgeInteractionContext) => ({
   repo: ctx.repo,
@@ -282,7 +310,13 @@ export async function handleForgeInteraction(
             entityCacheRepo: ctx.entityCacheRepo,
           }
         );
-        await editReplyCatchUnknown(interaction, { content });
+        await editReplyCatchUnknown(
+          interaction,
+          questLeaderboardEditPayload(
+            content,
+            ctx.config.questLeaderboardBannerUrl
+          )
+        );
         return;
       }
 

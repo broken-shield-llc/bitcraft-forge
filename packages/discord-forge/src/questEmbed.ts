@@ -72,8 +72,8 @@ export function buildQuestCompletionEmbed(
   input: QuestCompletionEmbedInput
 ): EmbedBuilder {
   const claim = input.claimName?.trim() || "—";
-  const shop = input.shopNickname?.trim() || "—";
-  let title = `Quest completed in ${claim} - ${shop}`;
+  const building = input.shopNickname?.trim() || "—";
+  let title = `${claim} - ${building}`;
   if (title.length > TITLE_MAX) title = title.slice(0, TITLE_MAX - 1) + "…";
   const fields = [
     {

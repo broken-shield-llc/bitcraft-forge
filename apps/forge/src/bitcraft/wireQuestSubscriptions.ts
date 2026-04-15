@@ -17,7 +17,7 @@ import {
 } from "@forge/domain";
 import type { Logger } from "@forge/logger";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
-import { ChannelType, type Client } from "discord.js";
+import { ChannelType, EmbedBuilder, type Client } from "discord.js";
 import { mapTradeOrderToSnapshot } from "./mapTradeOrderState.js";
 import type { QuestOfferCache } from "./questOfferCache.js";
 
@@ -375,20 +375,24 @@ export function wireQuestSubscriptions(
         );
         return;
       }
-      await ch.send({
-        embeds: [
-          buildQuestCompletionEmbed({
-            claimName,
-            shopNickname,
-            traderDisplay,
-            offerSummary,
-            requiredSummary,
-            ...(remainingStock !== undefined
-              ? { remainingStock }
-              : {}),
-          }),
-        ],
+      const completionEmbed = buildQuestCompletionEmbed({
+        claimName,
+        shopNickname,
+        traderDisplay,
+        offerSummary,
+        requiredSummary,
+        ...(remainingStock !== undefined
+          ? { remainingStock }
+          : {}),
       });
+      const bannerUrl = config.questCompletionBannerUrl?.trim();
+      const embeds = bannerUrl
+        ? [
+            new EmbedBuilder().setColor(0x27ae60).setImage(bannerUrl),
+            completionEmbed,
+          ]
+        : [completionEmbed];
+      await ch.send({ embeds });
     } catch (e: unknown) {
       const code = (e as { code?: unknown } | null)?.code;
       if (code === 50001 || code === 10003 || code === 50013) {
