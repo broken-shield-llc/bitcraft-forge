@@ -26,7 +26,33 @@ describe("loadForgeConfig", () => {
     expect(r.config.questSuppressUpdateAfterCompleteMs).toBe(
       r.config.questDiscordDebounceMs + 3000
     );
+    expect(r.config.questBoardBannerUrl).toBeUndefined();
+    expect(r.config.questLeaderboardBannerUrl).toBeUndefined();
+    expect(r.config.questCompletionBannerUrl).toBeUndefined();
     expect(r.config.healthListenPort).toBeUndefined();
+  });
+
+  it("accepts optional quest banner URLs", () => {
+    const r = loadForgeConfig({
+      FORGE_DISCORD_TOKEN: "x",
+      FORGE_DISCORD_APPLICATION_ID: "1",
+      FORGE_BITCRAFT_WS_URI: "wss://example.test",
+      FORGE_BITCRAFT_MODULE: "bitcraft-1",
+      FORGE_BITCRAFT_JWT: "jwt",
+      FORGE_DATABASE_URL: "postgresql://u:p@localhost:5432/forge",
+      FORGE_QUEST_BOARD_BANNER_URL: "https://cdn.example/board.png",
+      FORGE_QUEST_LEADERBOARD_BANNER_URL: "https://cdn.example/leaderboard.png",
+      FORGE_QUEST_COMPLETION_BANNER_URL: "https://cdn.example/completion.png",
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.config.questBoardBannerUrl).toBe("https://cdn.example/board.png");
+    expect(r.config.questLeaderboardBannerUrl).toBe(
+      "https://cdn.example/leaderboard.png"
+    );
+    expect(r.config.questCompletionBannerUrl).toBe(
+      "https://cdn.example/completion.png"
+    );
   });
 
   it("accepts FORGE_HEALTH_PORT", () => {

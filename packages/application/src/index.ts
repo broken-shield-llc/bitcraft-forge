@@ -13,7 +13,10 @@ export {
 } from "./adminClaims.js";
 export {
   executeSetAnnouncementChannel,
+  executeSetQuestAnnouncementTarget,
+  type QuestAnnouncementTargetKey,
   type SetAnnouncementChannelDeps,
+  type SetQuestAnnouncementTargetDeps,
 } from "./adminChannel.js";
 export {
   executeForgeDisable,
@@ -25,6 +28,7 @@ export {
 export {
   buildForgeHealthContent,
   forgeHealthStdbMarkdownLines,
+  type ForgeHealthDiscordMeta,
   type ForgeHealthViewInput,
   type ForgeStdbSnapshot,
 } from "./forgeHealth.js";

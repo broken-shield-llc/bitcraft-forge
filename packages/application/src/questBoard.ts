@@ -12,6 +12,7 @@ import {
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
 
 const MAX_BOARD_OFFERS_HARD = 120;
+/** Shop detail body budget: Discord embed description max is 4096 chars; banner mode uses a separate image embed, text goes in the second embed. */
 const MAX_BOARD_CHARS = 1950;
 export const QUEST_BOARD_SHOPS_PER_PAGE = 25;
 const MAX_DISCORD_SELECT_VALUE_LEN = 100;
@@ -37,6 +38,7 @@ export type QuestBoardDeps = {
     | "getItemNames"
     | "getItemRarityTags"
     | "getBuildingNicknames"
+    | "getClaimNameForBuilding"
   >;
   questOffers: QuestOfferReadPort;
   /** Slash root (e.g. `forge`). Defaults to `forge`. */
@@ -235,9 +237,6 @@ function buildOfferLines(
     const t = rarityTags.get(s.itemId);
     return typeof t === "string" && isLegendaryPlusRarityTag(t);
   });
-  const ratingPrefix = hasLegendaryPlusReward
-    ? `${questBoardLegendaryPlusRowBadge()} · `
-    : "";
   const offerLine =
     o.offerStacks && o.offerStacks.length > 0
       ? formatOfferStacksHighlightingLegendaryPlus(
@@ -250,11 +249,16 @@ function buildOfferLines(
     o.requiredStacks && o.requiredStacks.length > 0
       ? formatItemStacksWithNames(o.requiredStacks, itemNames)
       : o.requiredSummary;
-  return [
-    `• ${ratingPrefix}Offer: ${offerLine}`,
-    `  Request: ${reqLine}`,
-    `  Stock: ${o.remainingStock}`,
-  ];
+  const body: string[] = [];
+  if (hasLegendaryPlusReward) {
+    body.push(questBoardLegendaryPlusRowBadge());
+  }
+  body.push(
+    `**Offer:** ${offerLine}`,
+    `**Request:** ${reqLine}`,
+    `**Stock:** ${o.remainingStock}`
+  );
+  return body;
 }
 
 export type QuestBoardShopDetailResult =
@@ -286,11 +290,22 @@ export async function executeQuestBoardShopDetail(
   }
 
   const nick = p.shopNicks.get(shopEntityIdStr)?.trim();
-  const shopName = nick && nick.length > 0 ? nick : "—";
+  const buildingName = nick && nick.length > 0 ? nick : "—";
+  let claimName: string | undefined;
+  try {
+    claimName = await deps.entityCacheRepo.getClaimNameForBuilding(
+      shopEntityIdStr
+    );
+  } catch {
+    void 0;
+  }
+  const claimDisplay = claimName?.trim() || "—";
+  const offerWord =
+    shopOffers.length === 1 ? "offer" : "offers";
   const lines: string[] = [
     "**Quest board**",
     "",
-    `**${shopName}** (${shopOffers.length} offer${shopOffers.length === 1 ? "" : "s"})`,
+    `**${claimDisplay} - ${buildingName}** (${shopOffers.length} ${offerWord})`,
     "",
   ];
 
@@ -310,8 +325,9 @@ export async function executeQuestBoardShopDetail(
   for (const o of shopOffers) {
     if (shown >= MAX_BOARD_OFFERS_HARD) break;
     const offerLines = buildOfferLines(o, p.itemNames, p.rarityTags);
-    if (!fitsWithFooter(offerLines)) break;
-    lines.push(...offerLines);
+    const block = shown > 0 ? ["", ...offerLines] : offerLines;
+    if (!fitsWithFooter(block)) break;
+    lines.push(...block);
     shown += 1;
   }
 

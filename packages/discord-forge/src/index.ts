@@ -10,3 +10,4 @@ export {
   buildQuestOfferEmbed,
   type QuestCompletionEmbedInput,
 } from "./questEmbed.js";
+export { isQuestAnnouncementChannelType } from "./questAnnouncementChannel.js";

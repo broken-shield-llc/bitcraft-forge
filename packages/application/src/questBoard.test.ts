@@ -30,6 +30,7 @@ describe("executeQuestBoardList", () => {
         getItemNames: vi.fn().mockResolvedValue(new Map()),
         getItemRarityTags: vi.fn().mockResolvedValue(new Map()),
         getBuildingNicknames: vi.fn().mockResolvedValue(new Map()),
+        getClaimNameForBuilding: vi.fn().mockResolvedValue(undefined),
       },
       questOffers: {
         snapshotForMonitoredBuildings: vi.fn().mockReturnValue([]),
@@ -55,6 +56,7 @@ describe("executeQuestBoardList", () => {
         getItemNames: vi.fn().mockResolvedValue(new Map()),
         getItemRarityTags: vi.fn().mockResolvedValue(new Map()),
         getBuildingNicknames: vi.fn().mockResolvedValue(new Map()),
+        getClaimNameForBuilding: vi.fn().mockResolvedValue(undefined),
       },
       questOffers: {
         snapshotForMonitoredBuildings: vi.fn().mockReturnValue([]),
@@ -94,6 +96,7 @@ describe("executeQuestBoardList", () => {
         getBuildingNicknames: vi
           .fn()
           .mockResolvedValue(new Map([["10", "Stall One"]])),
+        getClaimNameForBuilding: vi.fn().mockResolvedValue(undefined),
       },
       questOffers: {
         snapshotForMonitoredBuildings: vi.fn().mockReturnValue([offer]),
@@ -138,6 +141,7 @@ describe("executeQuestBoardShopDetail", () => {
         getBuildingNicknames: vi
           .fn()
           .mockResolvedValue(new Map([["10", "Stall One"]])),
+        getClaimNameForBuilding: vi.fn().mockResolvedValue("North"),
       },
       questOffers: {
         snapshotForMonitoredBuildings: vi.fn().mockReturnValue([offer]),
@@ -147,10 +151,10 @@ describe("executeQuestBoardShopDetail", () => {
     expect(r.kind).toBe("ok");
     if (r.kind === "ok") {
       expect(r.content).toContain("**Quest board**");
-      expect(r.content).toContain("**Stall One**");
+      expect(r.content).toContain("**North - Stall One**");
       expect(r.content).toContain("Gold ×2");
       expect(r.content).toContain("Iron ×1");
-      expect(r.content).toContain("Stock: 3");
+      expect(r.content).toContain("**Stock:** 3");
     }
   });
 
@@ -172,6 +176,7 @@ describe("executeQuestBoardShopDetail", () => {
           .fn()
           .mockResolvedValue(new Map([[1, "Legendary"]])),
         getBuildingNicknames: vi.fn().mockResolvedValue(new Map()),
+        getClaimNameForBuilding: vi.fn().mockResolvedValue(undefined),
       },
       questOffers: {
         snapshotForMonitoredBuildings: vi.fn().mockReturnValue([offer]),

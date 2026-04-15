@@ -3,6 +3,10 @@ export type {
   GuildConfigRepository,
   MonitoredBuildingScopePair,
   MonitoredBuildingRow,
+  QuestAnnouncementKind,
+  QuestAnnouncementOverrideTarget,
+  QuestAnnouncementRouting,
+  QuestAnnouncementRoutingSource,
   QuestLeaderboardRow,
 } from "./guildConfigRepository.js";
 export type {

@@ -29,7 +29,7 @@ export async function executeForgeEnable(
     };
   }
   return {
-    content: `BitCraft Forge is enabled for this channel. Configure monitors with \`/${cmd} claim\` and \`/${cmd} building\` here. Quest / barter announcements post here by default; use \`/${cmd} channel set\` to target another channel.`,
+    content: `BitCraft Forge is enabled for this channel. Configure monitors with \`/${cmd} claim\` and \`/${cmd} building\` here. Quest/barter embeds post here by default; use \`/${cmd} channel set\` to send them to any other text channel (or thread) instead.`,
   };
 }
 

@@ -1,6 +1,6 @@
 import {
-  ChannelType,
   type ChatInputCommandInteraction,
+  EmbedBuilder,
   type InteractionEditReplyOptions,
   MessageFlags,
 } from "discord.js";
@@ -18,8 +18,9 @@ import {
   executeQuestBoardList,
   executeQuestLeaderboard,
   executeQuestLeaderboardReset,
-  executeSetAnnouncementChannel,
+  executeSetQuestAnnouncementTarget,
   forgeChannelNotEnabledMessage,
+  type QuestAnnouncementTargetKey,
 } from "@forge/application";
 import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
@@ -29,6 +30,7 @@ import {
   type QuestOfferCache,
 } from "../bitcraft/index.js";
 import {
+  isQuestAnnouncementChannelType,
   isUnknownInteractionError,
   requireForgeChannelManage,
   requireManageGuild,
@@ -57,6 +59,33 @@ const claimDeps = (ctx: ForgeInteractionContext) => ({
   entityCacheRepo: ctx.entityCacheRepo,
   discordCommandName: ctx.config.discordCommandName,
 });
+
+const LEADERBOARD_DESC_MAX = 4096;
+const LEADERBOARD_EMBED_COLOR = 0x2b2d31;
+
+function stripLeaderboardTitleLine(text: string): string {
+  return text.replace(/^\*\*Quest Leaderboard\*\*\s*\n?/u, "");
+}
+
+function questLeaderboardEditPayload(
+  fullContent: string,
+  bannerUrl: string | undefined
+): InteractionEditReplyOptions {
+  const trimmed = bannerUrl?.trim();
+  if (!trimmed) return { content: fullContent };
+
+  let body = stripLeaderboardTitleLine(fullContent);
+  if (body.length > LEADERBOARD_DESC_MAX) {
+    body = body.slice(0, Math.max(0, LEADERBOARD_DESC_MAX - 1)) + "…";
+  }
+  const bannerEmbed = new EmbedBuilder()
+    .setColor(LEADERBOARD_EMBED_COLOR)
+    .setImage(trimmed);
+  const textEmbed = new EmbedBuilder()
+    .setColor(LEADERBOARD_EMBED_COLOR)
+    .setDescription(body);
+  return { content: "", embeds: [bannerEmbed, textEmbed] };
+}
 
 const enableDeps = (ctx: ForgeInteractionContext) => ({
   repo: ctx.repo,
@@ -135,20 +164,37 @@ export async function handleForgeInteraction(
       connected: snap.connected,
       questProjectionReady: snap.questProjectionReady,
     };
+    const discordMeta = {
+      commandName: ctx.config.discordCommandName,
+      slashGuildRegistrationId: ctx.config.discordGuildId,
+    };
     let content: string;
     try {
       const entityCacheCounts =
         await ctx.entityCacheRepo.getEntityCacheTableCounts();
-      content = buildForgeHealthContent({ stdb, entityCacheCounts });
+      content = buildForgeHealthContent({
+        stdb,
+        entityCacheCounts,
+        discordMeta,
+      });
     } catch (e: unknown) {
       ctx.log.warn("forge health cache counts failed", e);
-      content = [
-        "**FORGE**",
-        "",
-        ...forgeHealthStdbMarkdownLines(stdb),
-        "",
-        "Could not load Postgres cache counts (check DB and logs).",
-      ].join("\n");
+      content = buildForgeHealthContent({
+        stdb,
+        entityCacheCounts: {
+          itemDesc: 0,
+          claimState: 0,
+          buildingState: 0,
+          buildingDesc: 0,
+          buildingNickname: 0,
+          inventoryState: 0,
+          userState: 0,
+          playerUsername: 0,
+        },
+        cacheCountsErrorMessage:
+          "Could not load Postgres cache counts (check DB and logs).",
+        discordMeta,
+      });
     }
     await editReplyCatchUnknown(interaction, { content });
     return;
@@ -282,7 +328,13 @@ export async function handleForgeInteraction(
             entityCacheRepo: ctx.entityCacheRepo,
           }
         );
-        await editReplyCatchUnknown(interaction, { content });
+        await editReplyCatchUnknown(
+          interaction,
+          questLeaderboardEditPayload(
+            content,
+            ctx.config.questLeaderboardBannerUrl
+          )
+        );
         return;
       }
 
@@ -302,11 +354,14 @@ export async function handleForgeInteraction(
       }
       if (!(await replyIfNotEnabledAfterDefer())) return;
 
-      const ch = interaction.options.getChannel("announcements");
+      const targetRaw = interaction.options.getString("target") ?? "default";
+      const target = targetRaw as QuestAnnouncementTargetKey;
+      const ch = interaction.options.getChannel("channel");
       if (!ch) {
-        const { content } = await executeSetAnnouncementChannel(
+        const { content } = await executeSetQuestAnnouncementTarget(
           guildId,
           forgeChannelId,
+          target,
           null,
           {
             repo: ctx.repo,
@@ -316,18 +371,17 @@ export async function handleForgeInteraction(
         await editReplyCatchUnknown(interaction, { content });
         return;
       }
-      if (
-        ch.type !== ChannelType.GuildText &&
-        ch.type !== ChannelType.GuildAnnouncement
-      ) {
+      if (!isQuestAnnouncementChannelType(ch.type)) {
         await editReplyCatchUnknown(interaction, {
-          content: "Pick a text or announcement channel.",
+          content:
+            "Pick a text channel, announcement channel, or thread the bot can post in.",
         });
         return;
       }
-      const { content } = await executeSetAnnouncementChannel(
+      const { content } = await executeSetQuestAnnouncementTarget(
         guildId,
         forgeChannelId,
+        target,
         ch.id,
         {
           repo: ctx.repo,

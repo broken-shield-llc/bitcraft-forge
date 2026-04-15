@@ -22,6 +22,8 @@ export type ForgeConfig = {
   questAnnounceAfterStdbSyncMs: number;
   stdbCacheTtlMs: number;
   questBoardBannerUrl: string | undefined;
+  questLeaderboardBannerUrl: string | undefined;
+  questCompletionBannerUrl: string | undefined;
   /**
    * When set, binds an HTTP server on this port for `GET /health` (liveness).
    * Omit or leave unset to disable (`FORGE_HEALTH_PORT`).
@@ -217,6 +219,10 @@ export function loadForgeConfig(
 
   const questBoardBannerUrl =
     f.FORGE_QUEST_BOARD_BANNER_URL?.trim() || undefined;
+  const questLeaderboardBannerUrl =
+    f.FORGE_QUEST_LEADERBOARD_BANNER_URL?.trim() || undefined;
+  const questCompletionBannerUrl =
+    f.FORGE_QUEST_COMPLETION_BANNER_URL?.trim() || undefined;
 
   return {
     ok: true,
@@ -235,6 +241,8 @@ export function loadForgeConfig(
       questAnnounceAfterStdbSyncMs,
       stdbCacheTtlMs,
       questBoardBannerUrl,
+      questLeaderboardBannerUrl,
+      questCompletionBannerUrl,
       healthListenPort,
     },
   };

@@ -19,7 +19,8 @@
     "test": "pnpm -r run test",
     "start": "pnpm --filter forge start",
     "dev": "pnpm --filter forge dev",
-    "db:generate": "pnpm --filter @forge/db db:generate"
+    "db:generate": "pnpm --filter @forge/db db:generate",
+    "db:migrate": "pnpm --filter forge migrate-db"
   },
   "engines": {
     "node": ">=20",

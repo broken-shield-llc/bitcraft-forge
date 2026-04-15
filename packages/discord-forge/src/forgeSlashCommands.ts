@@ -4,6 +4,8 @@ export function buildForgeSlashCommand(commandName: string) {
   return new SlashCommandBuilder()
     .setName(commandName)
     .setDescription("BitCraft barter boards, quest leaderboard, and settlement alerts in Discord")
+    // Explicit: no guild-level permission gate on the command tree (mods still gate via Integrations UI).
+    .setDefaultMemberPermissions(null)
     .addSubcommand((s) =>
       s
         .setName("health")
@@ -53,13 +55,32 @@ export function buildForgeSlashCommand(commandName: string) {
             .setDescription(
               "Set or clear where barter and quest messages post for this channel's scope"
             )
+            .addStringOption((o) =>
+              o
+                .setName("target")
+                .setDescription(
+                  "Which stream to configure (omit = default fallback)"
+                )
+                .setRequired(false)
+                .addChoices(
+                  { name: "default", value: "default" },
+                  { name: "quest-added", value: "quest_added" },
+                  { name: "quest-updated", value: "quest_updated" },
+                  { name: "quest-completion", value: "quest_completion" }
+                )
+            )
             .addChannelOption((o) =>
               o
-                .setName("announcements")
-                .setDescription("Text or announcement channel (omit to clear)")
+                .setName("channel")
+                .setDescription(
+                  "Any server text channel, announcement channel, or thread (omit = clear)"
+                )
                 .addChannelTypes(
                   ChannelType.GuildText,
-                  ChannelType.GuildAnnouncement
+                  ChannelType.GuildAnnouncement,
+                  ChannelType.PublicThread,
+                  ChannelType.PrivateThread,
+                  ChannelType.AnnouncementThread
                 )
                 .setRequired(false)
             )

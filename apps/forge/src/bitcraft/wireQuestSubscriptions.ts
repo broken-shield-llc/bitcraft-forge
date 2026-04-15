@@ -9,6 +9,7 @@ import {
   buildQuestCompletionEmbed,
   buildQuestOfferEmbed,
   createKeyedDebouncer,
+  isQuestAnnouncementChannelType,
 } from "@forge/discord-forge";
 import {
   formatCompletionSubjectDisplay,
@@ -17,7 +18,7 @@ import {
 } from "@forge/domain";
 import type { Logger } from "@forge/logger";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
-import { ChannelType, type Client } from "discord.js";
+import { EmbedBuilder, type Client } from "discord.js";
 import { mapTradeOrderToSnapshot } from "./mapTradeOrderState.js";
 import type { QuestOfferCache } from "./questOfferCache.js";
 
@@ -147,11 +148,13 @@ export function wireQuestSubscriptions(
       }
     }
     const { discordGuildId, forgeChannelId } = parseScopeKey(scopeSk);
-    const channelId = await repo.getAnnouncementChannel(
+    const announceKind = kind === "new" ? "new" : "update";
+    const routing = await repo.getQuestAnnouncementRouting(
       discordGuildId,
-      forgeChannelId
+      forgeChannelId,
+      announceKind
     );
-    if (!channelId) {
+    if (!routing) {
       log.debug(
         "quest announce skipped (no channel)",
         `guild=${discordGuildId}`,
@@ -159,6 +162,7 @@ export function wireQuestSubscriptions(
       );
       return;
     }
+    const { channelId, source: routingSource } = routing;
     const client = getDiscordClient();
     if (!client) {
       log.warn(
@@ -211,13 +215,18 @@ export function wireQuestSubscriptions(
         `quest=${snap.questKey}`
       );
       const ch = await client.channels.fetch(channelId);
-      if (
-        !ch ||
-        (ch.type !== ChannelType.GuildText &&
-          ch.type !== ChannelType.GuildAnnouncement)
-      ) {
+      if (!ch || !isQuestAnnouncementChannelType(ch.type)) {
         log.debug(
           "quest announce skipped (channel wrong type or missing)",
+          `guild=${discordGuildId}`,
+          `forgeCh=${forgeChannelId}`,
+          `channel=${channelId}`
+        );
+        return;
+      }
+      if (!ch.isSendable()) {
+        log.debug(
+          "quest announce skipped (channel not sendable)",
           `guild=${discordGuildId}`,
           `forgeCh=${forgeChannelId}`,
           `channel=${channelId}`
@@ -250,10 +259,10 @@ export function wireQuestSubscriptions(
           `code=${String(code)}`
         );
         try {
-          await repo.setAnnouncementChannel(
+          await repo.clearQuestAnnouncementRouting(
             discordGuildId,
             forgeChannelId,
-            null
+            routingSource
           );
         } catch (e2: unknown) {
           log.warn("failed to clear announcement channel after discord error", e2);
@@ -275,11 +284,12 @@ export function wireQuestSubscriptions(
   ): Promise<void> => {
     if (!canAnnounceLive()) return;
     const { discordGuildId, forgeChannelId } = parseScopeKey(scopeSk);
-    const channelId = await repo.getAnnouncementChannel(
+    const routing = await repo.getQuestAnnouncementRouting(
       discordGuildId,
-      forgeChannelId
+      forgeChannelId,
+      "completion"
     );
-    if (!channelId) {
+    if (!routing) {
       log.debug(
         "quest completion announce skipped (no channel)",
         `guild=${discordGuildId}`,
@@ -287,6 +297,7 @@ export function wireQuestSubscriptions(
       );
       return;
     }
+    const { channelId, source: completionRoutingSource } = routing;
     const client = getDiscordClient();
     if (!client) {
       log.warn(
@@ -362,11 +373,7 @@ export function wireQuestSubscriptions(
         `order=${orderId}`
       );
       const ch = await client.channels.fetch(channelId);
-      if (
-        !ch ||
-        (ch.type !== ChannelType.GuildText &&
-          ch.type !== ChannelType.GuildAnnouncement)
-      ) {
+      if (!ch || !isQuestAnnouncementChannelType(ch.type)) {
         log.debug(
           "quest completion announce skipped (channel wrong type or missing)",
           `guild=${discordGuildId}`,
@@ -375,20 +382,33 @@ export function wireQuestSubscriptions(
         );
         return;
       }
-      await ch.send({
-        embeds: [
-          buildQuestCompletionEmbed({
-            claimName,
-            shopNickname,
-            traderDisplay,
-            offerSummary,
-            requiredSummary,
-            ...(remainingStock !== undefined
-              ? { remainingStock }
-              : {}),
-          }),
-        ],
+      if (!ch.isSendable()) {
+        log.debug(
+          "quest completion announce skipped (channel not sendable)",
+          `guild=${discordGuildId}`,
+          `forgeCh=${forgeChannelId}`,
+          `channel=${channelId}`
+        );
+        return;
+      }
+      const completionEmbed = buildQuestCompletionEmbed({
+        claimName,
+        shopNickname,
+        traderDisplay,
+        offerSummary,
+        requiredSummary,
+        ...(remainingStock !== undefined
+          ? { remainingStock }
+          : {}),
       });
+      const bannerUrl = config.questCompletionBannerUrl?.trim();
+      const embeds = bannerUrl
+        ? [
+            new EmbedBuilder().setColor(0x27ae60).setImage(bannerUrl),
+            completionEmbed,
+          ]
+        : [completionEmbed];
+      await ch.send({ embeds });
     } catch (e: unknown) {
       const code = (e as { code?: unknown } | null)?.code;
       if (code === 50001 || code === 10003 || code === 50013) {
@@ -400,10 +420,10 @@ export function wireQuestSubscriptions(
           `code=${String(code)}`
         );
         try {
-          await repo.setAnnouncementChannel(
+          await repo.clearQuestAnnouncementRouting(
             discordGuildId,
             forgeChannelId,
-            null
+            completionRoutingSource
           );
         } catch (e2: unknown) {
           log.warn("failed to clear announcement channel after discord error", e2);

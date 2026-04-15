@@ -9,6 +9,10 @@ import type {
   GuildConfigRepository,
   MonitoredBuildingRow,
   MonitoredBuildingScopePair,
+  QuestAnnouncementKind,
+  QuestAnnouncementOverrideTarget,
+  QuestAnnouncementRouting,
+  QuestAnnouncementRoutingSource,
   QuestLeaderboardRow,
 } from "./guildConfigRepository.js";
 
@@ -211,14 +215,51 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
       );
   }
 
-  async getAnnouncementChannel(
+  async setQuestAnnouncementOverride(
     discordGuildId: string,
-    forgeChannelId: string
-  ): Promise<string | undefined> {
+    forgeChannelId: string,
+    target: QuestAnnouncementOverrideTarget,
+    channelId: string | null
+  ): Promise<void> {
+    await this.ensureGuild(discordGuildId);
+    const patch =
+      target === "quest_added"
+        ? { questAddedChannelId: channelId }
+        : target === "quest_updated"
+          ? { questUpdatedChannelId: channelId }
+          : { questCompletionChannelId: channelId };
+    await this.db
+      .update(schema.forgeEnabledChannels)
+      .set(patch)
+      .where(
+        and(
+          eq(schema.forgeEnabledChannels.discordGuildId, discordGuildId),
+          eq(schema.forgeEnabledChannels.discordChannelId, forgeChannelId)
+        )
+      );
+  }
+
+  private pickNonEmpty(
+    s: string | null | undefined
+  ): string | undefined {
+    const t = s?.trim();
+    return t ? t : undefined;
+  }
+
+  async getQuestAnnouncementRouting(
+    discordGuildId: string,
+    forgeChannelId: string,
+    kind: QuestAnnouncementKind
+  ): Promise<QuestAnnouncementRouting | undefined> {
     const rows = await this.db
       .select({
         announcementChannelId:
           schema.forgeEnabledChannels.announcementChannelId,
+        questAddedChannelId: schema.forgeEnabledChannels.questAddedChannelId,
+        questUpdatedChannelId:
+          schema.forgeEnabledChannels.questUpdatedChannelId,
+        questCompletionChannelId:
+          schema.forgeEnabledChannels.questCompletionChannelId,
       })
       .from(schema.forgeEnabledChannels)
       .where(
@@ -228,8 +269,49 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
         )
       )
       .limit(1);
-    const id = rows[0]?.announcementChannelId;
-    return id ?? undefined;
+    const r = rows[0];
+    if (!r) return undefined;
+    const def = this.pickNonEmpty(r.announcementChannelId);
+    if (kind === "new") {
+      const o = this.pickNonEmpty(r.questAddedChannelId);
+      if (o) return { channelId: o, source: "quest_added" };
+      if (def) return { channelId: def, source: "default" };
+      return undefined;
+    }
+    if (kind === "update") {
+      const o = this.pickNonEmpty(r.questUpdatedChannelId);
+      if (o) return { channelId: o, source: "quest_updated" };
+      if (def) return { channelId: def, source: "default" };
+      return undefined;
+    }
+    const o = this.pickNonEmpty(r.questCompletionChannelId);
+    if (o) return { channelId: o, source: "quest_completion" };
+    if (def) return { channelId: def, source: "default" };
+    return undefined;
+  }
+
+  async clearQuestAnnouncementRouting(
+    discordGuildId: string,
+    forgeChannelId: string,
+    source: QuestAnnouncementRoutingSource
+  ): Promise<void> {
+    const patch =
+      source === "default"
+        ? { announcementChannelId: null as null }
+        : source === "quest_added"
+          ? { questAddedChannelId: null as null }
+          : source === "quest_updated"
+            ? { questUpdatedChannelId: null as null }
+            : { questCompletionChannelId: null as null };
+    await this.db
+      .update(schema.forgeEnabledChannels)
+      .set(patch)
+      .where(
+        and(
+          eq(schema.forgeEnabledChannels.discordGuildId, discordGuildId),
+          eq(schema.forgeEnabledChannels.discordChannelId, forgeChannelId)
+        )
+      );
   }
 
   async listMonitoredBuildingScopePairs(): Promise<

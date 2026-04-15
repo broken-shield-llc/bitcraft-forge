@@ -26,7 +26,7 @@ if (loaded.config.healthListenPort !== undefined) {
 }
 
 const pool = createPool(loaded.config.databaseUrl);
-await runMigrations(pool, log);
+await runMigrations(pool, log, { databaseUrlHint: loaded.config.databaseUrl });
 
 const db = createDb(pool);
 const repo = new DrizzleGuildConfigRepository(db);
