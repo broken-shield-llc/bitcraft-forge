@@ -10,11 +10,11 @@ Licensed under the [MIT License](LICENSE). See [SECURITY.md](SECURITY.md) for ho
 
 ## Features
 
-- **Per-channel scope** — Each Discord text channel can be enabled independently (`/forge enable`), with its own monitors, announcement target, and leaderboard data.
+- **Per-channel scope** — Each Discord text channel can be enabled independently (`/forge enable`), with its own monitors, announcement routing, and leaderboard data.
 - **Monitors** — Track BitCraft **claims** and **barter buildings** (stall vs counter is inferred from game data).
 - **Quest board** — Lists active barter offers for buildings monitored in that channel’s scope.
 - **Leaderboard** — Ranks members by **quest completions** recorded when a barter completes at a monitored building.
-- **Announcements** — Optional text/announcement channel for debounced embeds when offers change or complete.
+- **Announcements** — Optional text or announcement channels for debounced embeds when offers change or complete. `/forge channel set` can route a **default** stream or separate channels for **quest added**, **quest updated**, and **quest completion** traffic.
 
 ## SpacetimeDB usage
 
@@ -55,6 +55,8 @@ Commands are registered when the bot starts: **guild** commands if `FORGE_DISCOR
 
 **If only admins (e.g. Manage Server) see `/forge`:** that pattern is almost always **Discord integration command permissions**, not Forge env. Someone with **Manage Server** should open **Server Settings → Integrations → (this bot)** and check **Manage** / command permissions: remove role restrictions that hide the app’s commands, or explicitly allow **@everyone** (or your role). Also check the **channel** (or category): **Permissions → Use Application Commands** must be allowed for you in the channel where you type `/forge`. After changing integration permissions, you may need to restart the Discord client or wait a short time for the command list to refresh.
 
+**Root command name** — This document uses **`/forge`** as the root. When `FORGE_DISCORD_COMMAND_NAME` is set (see `.env.example`), substitute that name for `forge` in every command path.
+
 Unless noted, use commands in a **server text channel**.
 
 **Permissions:** **Manage Server** is required for `health` (operator diagnostics), `enable`, and `disable`. For everything else that configures this channel’s Forge scope (claims, buildings, where messages post, resetting the quest leaderboard), members need **Manage Server** *or* **Manage Channels** so channel moderators can run settlement tools without full server admin. The quest board and leaderboard are **Anyone** where marked below (no mod permission).
@@ -62,7 +64,7 @@ Unless noted, use commands in a **server text channel**.
 
 | Command                    | Description                                                                  | Permission                       |
 | -------------------------- | ---------------------------------------------------------------------------- | -------------------------------- |
-| `/forge health`            | Forge technical status for operators (version, links, cache counts)          | Manage Server                    |
+| `/forge health`            | Operator diagnostics: SpacetimeDB and quest projection status, Postgres entity-cache row counts, slash registration (global vs single-guild) | Manage Server                    |
 | `/forge enable`            | Turn on Forge for this channel's scope                                       | Manage Server                    |
 | `/forge disable`           | Turn off Forge for this channel's scope and clear its data                    | Manage Server                    |
 | `/forge quest board`†       | Active barter offers for this channel's scope                                 | Anyone                           |
@@ -91,18 +93,25 @@ The quest board may include buttons or selects; the bot uses the `Guilds` intent
 ## Local development
 
 1. **Install dependencies** (from the repository root):
-  ```bash
+
+   ```bash
    pnpm install
-  ```
+   ```
+
    The `prepare` script clones BitCraft_Bindings into `apps/forge/vendor/` unless you set `FORGE_SKIP_BINDINGS_CLONE=1` (useful for CI or restricted networks).
+
 2. **Configure environment** — Copy [`.env.example`](.env.example) to `.env` at the repo root or under `apps/forge/`. The process loads the first existing file in that order. Set at least:
-  - `FORGE_DISCORD_TOKEN` — **Bot** token (Developer Portal → **Bot**). Do not use the OAuth2 client secret.
-  - `FORGE_DISCORD_APPLICATION_ID` — Same application’s **Application ID** (same value as the OAuth2 “Client ID”).
-  - `FORGE_DATABASE_URL` — PostgreSQL connection string.
-  - `FORGE_BITCRAFT_WS_URI`, `FORGE_BITCRAFT_MODULE`, `FORGE_BITCRAFT_JWT` — BitCraft SpacetimeDB endpoint and session token.
-   Optional variables (debounce timings, quest board/leaderboard/completion banner URLs, guild-scoped slash registration, etc.) are documented in `.env.example`.
-3. **Start PostgreSQL** — For example, from the repo root: `docker compose up -d` using [docker-compose.yml](docker-compose.yml), then point `FORGE_DATABASE_URL` at that instance.
-4. **Run the app** — Migrations apply on startup.
+
+   - `FORGE_DISCORD_TOKEN` — **Bot** token (Developer Portal → **Bot**). Do not use the OAuth2 client secret.
+   - `FORGE_DISCORD_APPLICATION_ID` — Same application’s **Application ID** (same value as the OAuth2 “Client ID”).
+   - `FORGE_DATABASE_URL` — PostgreSQL connection string, **or** the composite variables `FORGE_DATABASE_HOST`, `FORGE_DATABASE_USER`, `FORGE_DATABASE_PASSWORD`, and `FORGE_DATABASE_NAME` (optional `FORGE_DATABASE_PORT`, `FORGE_DATABASE_SSLMODE`) when no single URL is used (for example in containers).
+   - `FORGE_BITCRAFT_WS_URI`, `FORGE_BITCRAFT_MODULE`, `FORGE_BITCRAFT_JWT` — BitCraft SpacetimeDB endpoint and session token.
+
+   Optional variables (debounce timings, quest board/leaderboard/completion banner URLs, `FORGE_HEALTH_PORT` for `GET /health`, guild-scoped slash registration, root command name, etc.) are documented in `.env.example`.
+
+3. **Start PostgreSQL** — For example, from the repo root: `docker compose up -d` using [docker-compose.yml](docker-compose.yml), then point `FORGE_DATABASE_URL` (or the composite `FORGE_DATABASE_*` variables) at that instance.
+
+4. **Run the app** — Migrations apply on startup when the forge process starts.
 
    ```bash
    pnpm dev
@@ -111,10 +120,11 @@ The quest board may include buttons or selects; the bot uses the `Guilds` intent
    Other useful commands:
 
    ```bash
-   pnpm test        # Vitest across workspace packages
-   pnpm typecheck   # TypeScript
-   pnpm start       # production-style start (forge app)
-   pnpm db:generate # emit SQL after schema changes (needs FORGE_DATABASE_URL)
+   pnpm test         # Vitest across workspace packages
+   pnpm typecheck    # TypeScript
+   pnpm start        # production-style start (forge app)
+   pnpm db:generate  # emit SQL after schema changes (needs FORGE_DATABASE_URL)
+   pnpm db:migrate   # run Drizzle migrations via the forge migrate-db script
    ```
 
 5. **Develop with one guild** — Set `FORGE_DISCORD_GUILD_ID` so slash commands register immediately for that server instead of globally.
@@ -122,3 +132,12 @@ The quest board may include buttons or selects; the bot uses the `Guilds` intent
 ## Project layout
 
 Monorepo: runnable app in `apps/forge`; shared libraries in `packages/` (`@forge/config`, `@forge/domain`, `@forge/db`, `@forge/repos`, `@forge/application`, `@forge/discord-forge`, `@forge/logger`). The SpacetimeDB client uses `@clockworklabs/spacetimedb-sdk` **1.3.x** with a small [pnpm patch](patches/@clockworklabs__spacetimedb-sdk@1.3.3.patch) aligned to the vendored bindings.
+
+## Credits
+
+Thanks to the people who helped shape FORGE and the path to it:
+
+- **Tony** (the face of R9) — for the ideas that led to this service and for all the help testing.
+- **trin1trotoluene** — for helping me get on my feet when I started tinkering with SpacetimeDB.
+- **wiz** — for keeping us supplied with current BitCraft bindings.
+- **xCausxn** — for the inspiration to dive into this nonsense.
