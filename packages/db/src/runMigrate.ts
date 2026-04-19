@@ -39,6 +39,41 @@ async function ensureForgeQuestAnnouncementColumns(
   );
 }
 
+/**
+ * Idempotent repair for quest scoring / completion detail columns (0002).
+ */
+async function ensureQuestScoringColumns(pool: Pool, log: Logger): Promise<void> {
+  const stmts = [
+    `ALTER TABLE "forge_enabled_channels" ADD COLUMN IF NOT EXISTS "quest_leaderboard_scoring_mode" text NOT NULL DEFAULT 'default'`,
+    `ALTER TABLE "forge_enabled_channels" ADD COLUMN IF NOT EXISTS "quest_scoring_weights" jsonb`,
+    `ALTER TABLE "quest_completions" ADD COLUMN IF NOT EXISTS "offer_stacks" jsonb NOT NULL DEFAULT '[]'::jsonb`,
+    `ALTER TABLE "quest_completions" ADD COLUMN IF NOT EXISTS "require_stacks" jsonb NOT NULL DEFAULT '[]'::jsonb`,
+    `ALTER TABLE "quest_completions" ADD COLUMN IF NOT EXISTS "leaderboard_points" integer NOT NULL DEFAULT 1`,
+  ];
+  for (const sql of stmts) {
+    await pool.query(sql);
+  }
+  log.info(
+    "Quest scoring column repair done (IF NOT EXISTS; safe if Drizzle already applied 0002)"
+  );
+}
+
+/** Normalize legacy `per_completion` mode label and column default (see `0002_quest_scoring.sql`). */
+async function ensureQuestScoringModeDefaultLabel(
+  pool: Pool,
+  log: Logger
+): Promise<void> {
+  await pool.query(
+    `UPDATE "forge_enabled_channels" SET "quest_leaderboard_scoring_mode" = 'default' WHERE "quest_leaderboard_scoring_mode" = 'per_completion'`
+  );
+  await pool.query(
+    `ALTER TABLE "forge_enabled_channels" ALTER COLUMN "quest_leaderboard_scoring_mode" SET DEFAULT 'default'`
+  );
+  log.info(
+    "Quest scoring mode label repair done (per_completion → default; column default)"
+  );
+}
+
 export type RunMigrationsOptions = {
   /** Logged as `host/dbname` so you can confirm migrate matches the DB you inspect. */
   databaseUrlHint?: string;
@@ -70,5 +105,7 @@ export async function runMigrations(
   }
   log.info("Drizzle journal migrations finished");
   await ensureForgeQuestAnnouncementColumns(pool, log);
+  await ensureQuestScoringColumns(pool, log);
+  await ensureQuestScoringModeDefaultLabel(pool, log);
   log.info("Database schema ready for Forge");
 }

@@ -35,6 +35,12 @@ export const forgeEnabledChannels = pgTable(
     questAddedChannelId: text("quest_added_channel_id"),
     questUpdatedChannelId: text("quest_updated_channel_id"),
     questCompletionChannelId: text("quest_completion_channel_id"),
+    questLeaderboardScoringMode: text("quest_leaderboard_scoring_mode")
+      .notNull()
+      .default("default"),
+    questScoringWeights: jsonb("quest_scoring_weights").$type<
+      Record<string, number> | null
+    >(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -114,6 +120,15 @@ export const questCompletions = pgTable(
     subjectKey: text("subject_key").notNull(),
     buildingId: text("building_id").notNull(),
     questEntityId: text("quest_entity_id").notNull(),
+    offerStacks: jsonb("offer_stacks")
+      .notNull()
+      .$type<Array<{ itemId: number; quantity: number }>>()
+      .default([]),
+    requireStacks: jsonb("require_stacks")
+      .notNull()
+      .$type<Array<{ itemId: number; quantity: number }>>()
+      .default([]),
+    leaderboardPoints: integer("leaderboard_points").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

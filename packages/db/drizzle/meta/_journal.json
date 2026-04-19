@@ -15,6 +15,13 @@
       "when": 1776000000000,
       "tag": "0001_quest_announcement_targets",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776200000000,
+      "tag": "0002_quest_scoring",
+      "breakpoints": true
     }
   ]
 }

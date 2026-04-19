@@ -8,6 +8,8 @@ export type {
   QuestAnnouncementRouting,
   QuestAnnouncementRoutingSource,
   QuestLeaderboardRow,
+  QuestScoringConfigView,
+  RecordQuestCompletionInput,
 } from "./guildConfigRepository.js";
 export type {
   EntityCacheRepository,

@@ -12,8 +12,10 @@ import {
   isQuestAnnouncementChannelType,
 } from "@forge/discord-forge";
 import {
+  computeLeaderboardPoints,
   formatCompletionSubjectDisplay,
   formatItemStacksWithNames,
+  mergeQuestScoringWeights,
   questKeyFromParts,
 } from "@forge/domain";
 import type { Logger } from "@forge/logger";
@@ -611,25 +613,53 @@ export function wireQuestSubscriptions(
     for (const sk of scopes) {
       void announceQuestCompletion(sk, shopId, request, callerHex);
       const { discordGuildId, forgeChannelId } = parseScopeKey(sk);
-      void repo
-        .recordQuestCompletion(
-          discordGuildId,
-          forgeChannelId,
-          shopId,
-          questEntityId,
-          subjectKey
-        )
-        .then(() => {
+      void (async () => {
+        try {
+          const cfg = await repo.getQuestScoringConfig(
+            discordGuildId,
+            forgeChannelId
+          );
+          const mode = cfg?.mode ?? "default";
+          const weights = cfg?.weights ?? mergeQuestScoringWeights(null);
+          const questKeyInner = questKeyFromParts(
+            request.shopEntityId,
+            request.tradeOrderEntityId
+          );
+          const snap = questCache.get(questKeyInner);
+          const offerStacks = snap?.offerStacks ?? [];
+          const requireStacks = snap?.requiredStacks ?? [];
+          const reqIds = [...new Set(requireStacks.map((s) => s.itemId))];
+          const tierRows = await entityCacheRepo.getItemCraftingTiers(reqIds);
+          const tierByItemId = new Map<number, number | null | undefined>();
+          for (const id of reqIds) {
+            if (tierRows.has(id)) tierByItemId.set(id, tierRows.get(id)!);
+          }
+          const leaderboardPoints = computeLeaderboardPoints({
+            mode,
+            requiredStacks: requireStacks,
+            tierByItemId,
+            weights,
+          });
+          await repo.recordQuestCompletion({
+            discordGuildId,
+            forgeChannelId,
+            buildingId: shopId,
+            questEntityId,
+            subjectKey,
+            offerStacks,
+            requireStacks,
+            leaderboardPoints,
+          });
           log.debug(
             "recorded barter completion",
             `guild=${discordGuildId}`,
             `forgeCh=${forgeChannelId}`,
             `order=${questEntityId}`
           );
-        })
-        .catch((e: unknown) => {
+        } catch (e: unknown) {
           log.warn("recordQuestCompletion failed", e);
-        });
+        }
+      })();
     }
   });
 }

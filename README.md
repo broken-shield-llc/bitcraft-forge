@@ -13,7 +13,8 @@ Licensed under the [MIT License](LICENSE). See [SECURITY.md](SECURITY.md) for ho
 - **Per-channel scope** — Each Discord text channel can be enabled independently (`/forge enable`), with its own monitors, announcement routing, and leaderboard data.
 - **Monitors** — Track BitCraft **claims** and **barter buildings** (stall vs counter is inferred from game data).
 - **Quest board** — Lists active barter offers for buildings monitored in that channel’s scope.
-- **Leaderboard** — Ranks members by **quest completions** recorded when a barter completes at a monitored building.
+- **Leaderboard** — Ranks members by **quest points** summed from barter completions at monitored buildings. Each completion stores a snapshot of **offer** and **require** item stacks (for analytics); scoring uses **require** stacks and each item’s **crafting tier** from cached `item_desc` (`tier` field).
+- **Quest scoring** — Per scope: **default** (always **1** point per completion), **weighted max**, or **weighted sum** (see slash command descriptions). When you turn on a weighted mode from **default**, tier weights start at **1** for untiered and tier 1 and **N** for tier N (2–10) until you override them. Channel leads use `/forge quest scoring` (**Manage Server** or **Manage Channels**).
 - **Announcements** — Optional text or announcement channels for debounced embeds when offers change or complete. `/forge channel set` can route a **default** stream or separate channels for **quest added**, **quest updated**, and **quest completion** traffic.
 
 ## SpacetimeDB usage
@@ -47,6 +48,12 @@ Committed `barter_stall_order_accept` callbacks are used to log quest completion
 
 Rows from the entity tables above are upserted into local cache tables (see `packages/db` / migrations) with a TTL controlled by `FORGE_STDB_CACHE_TTL_MS`, so Discord can show item names, building nicknames, and similar without hammering SpacetimeDB.
 
+### Quest completions and scoring (Postgres)
+
+When a monitored barter completes, Forge inserts a `quest_completions` row with `offer_stacks`, `require_stacks` (JSON), and `leaderboard_points` derived from the scope’s scoring mode and tier weights. Changing mode or weights via `/forge quest scoring set` **recomputes** `leaderboard_points` for all completions in that scope from the stored require stacks and current item cache tiers.
+
+Drizzle migrations live under `packages/db/drizzle/`: **`0000_init`**, **`0001_quest_announcement_targets`**, and **`0002_quest_scoring`** (quest scoring columns + baseline data updates). After changing migration history locally, reset the database (e.g. recreate the DB or `DROP SCHEMA public CASCADE` / recreate) so `0000` can run on a clean slate.
+
 ## Discord commands
 
 Commands are registered when the bot starts: **guild** commands if `FORGE_DISCORD_GUILD_ID` is set, otherwise **global** commands (Discord can take up to about an hour to propagate global commands).
@@ -59,7 +66,7 @@ Commands are registered when the bot starts: **guild** commands if `FORGE_DISCOR
 
 Unless noted, use commands in a **server text channel**.
 
-**Permissions:** **Manage Server** is required for `health` (operator diagnostics), `enable`, and `disable`. For everything else that configures this channel’s Forge scope (claims, buildings, where messages post, resetting the quest leaderboard), members need **Manage Server** *or* **Manage Channels** so channel moderators can run settlement tools without full server admin. The quest board and leaderboard are **Anyone** where marked below (no mod permission).
+**Permissions:** **Manage Server** is required for `health` (operator diagnostics), `enable`, and `disable`. For everything else that configures this channel’s Forge scope (claims, buildings, where messages post, quest scoring, and resetting the quest leaderboard), members need **Manage Server** *or* **Manage Channels** so channel moderators can run settlement tools without full server admin. The quest board and leaderboard are **Anyone** where marked below (no mod permission).
 
 
 | Command                    | Description                                                                  | Permission                       |
@@ -68,8 +75,9 @@ Unless noted, use commands in a **server text channel**.
 | `/forge enable`            | Turn on Forge for this channel's scope                                       | Manage Server                    |
 | `/forge disable`           | Turn off Forge for this channel's scope and clear its data                    | Manage Server                    |
 | `/forge quest board`†       | Active barter offers for this channel's scope                                 | Anyone                           |
-| `/forge quest leaderboard`† | Quest leaderboard for this channel's scope                                   | Anyone                           |
-| `/forge quest reset-leaderboard`† | Clear the quest leaderboard for this channel's scope                     | Manage Server or Manage Channels |
+| `/forge quest leaderboard`† | Quest leaderboard for this channel's scope (totals **points**)                | Anyone                           |
+| `/forge quest scoring`†     | Show or set scoring mode and optional tier weights (`action` + `mode` when setting) | Manage Server or Manage Channels |
+| `/forge quest reset-leaderboard`† | Clear quest completions for this channel's scope                         | Manage Server or Manage Channels |
 | `/forge channel set`†       | Set or clear where barter and quest messages post for this channel's scope    | Manage Server or Manage Channels |
 | `/forge claim add`†         | Watch a claim for this channel's scope (`claim_id`)                          | Manage Server or Manage Channels |
 | `/forge claim remove`†      | Stop watching a claim for this channel's scope                               | Manage Server or Manage Channels |

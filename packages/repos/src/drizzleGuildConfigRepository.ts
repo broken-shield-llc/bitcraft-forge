@@ -1,7 +1,15 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sum } from "drizzle-orm";
 import {
-  type BuildingKind,
+  computeLeaderboardPoints,
+  DEFAULT_QUEST_SCORING_WEIGHTS,
+  mergeQuestScoringWeights,
   normalizeStoredBuildingKind,
+  parseQuestLeaderboardScoringMode,
+} from "@forge/domain";
+import type {
+  BuildingKind,
+  ItemStackLike,
+  QuestLeaderboardScoringMode,
 } from "@forge/domain";
 import { type ForgeDb, isPgUniqueViolation, schema } from "@forge/db";
 import type {
@@ -14,7 +22,22 @@ import type {
   QuestAnnouncementRouting,
   QuestAnnouncementRoutingSource,
   QuestLeaderboardRow,
+  RecordQuestCompletionInput,
+  QuestScoringConfigView,
 } from "./guildConfigRepository.js";
+
+function parseCompletionStacks(raw: unknown): ItemStackLike[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ItemStackLike[] = [];
+  for (const el of raw) {
+    if (!el || typeof el !== "object") continue;
+    const o = el as { itemId?: unknown; quantity?: unknown };
+    if (typeof o.itemId !== "number" || !Number.isFinite(o.itemId)) continue;
+    if (typeof o.quantity !== "number" || !Number.isFinite(o.quantity)) continue;
+    out.push({ itemId: o.itemId, quantity: o.quantity });
+  }
+  return out;
+}
 
 export class DrizzleGuildConfigRepository implements GuildConfigRepository {
   constructor(private readonly db: ForgeDb) {}
@@ -53,6 +76,8 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
         discordGuildId,
         discordChannelId: forgeChannelId,
         announcementChannelId: forgeChannelId,
+        questLeaderboardScoringMode: "default",
+        questScoringWeights: { ...DEFAULT_QUEST_SCORING_WEIGHTS },
       });
       return "ok";
     } catch (e: unknown) {
@@ -347,12 +372,18 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
   }
 
   async recordQuestCompletion(
-    discordGuildId: string,
-    forgeChannelId: string,
-    buildingId: string,
-    questEntityId: string,
-    subjectKey: string
+    input: RecordQuestCompletionInput
   ): Promise<AddResult> {
+    const {
+      discordGuildId,
+      forgeChannelId,
+      buildingId,
+      questEntityId,
+      subjectKey,
+      offerStacks,
+      requireStacks,
+      leaderboardPoints,
+    } = input;
     await this.ensureGuild(discordGuildId);
     await this.db.insert(schema.questCompletions).values({
       discordGuildId,
@@ -360,8 +391,154 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
       buildingId,
       questEntityId,
       subjectKey,
+      offerStacks,
+      requireStacks,
+      leaderboardPoints,
     });
     return "ok";
+  }
+
+  async getQuestScoringConfig(
+    discordGuildId: string,
+    forgeChannelId: string
+  ): Promise<QuestScoringConfigView | null> {
+    const rows = await this.db
+      .select({
+        mode: schema.forgeEnabledChannels.questLeaderboardScoringMode,
+        weights: schema.forgeEnabledChannels.questScoringWeights,
+      })
+      .from(schema.forgeEnabledChannels)
+      .where(
+        and(
+          eq(schema.forgeEnabledChannels.discordGuildId, discordGuildId),
+          eq(schema.forgeEnabledChannels.discordChannelId, forgeChannelId)
+        )
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      mode: parseQuestLeaderboardScoringMode(row.mode),
+      weights: mergeQuestScoringWeights(
+        row.weights as Record<string, unknown> | null | undefined
+      ),
+    };
+  }
+
+  async setQuestScoringConfig(
+    discordGuildId: string,
+    forgeChannelId: string,
+    input: {
+      mode: QuestLeaderboardScoringMode;
+      weightsPatch?: Partial<Record<string, number>> | null;
+    },
+    getTiers: (itemIds: number[]) => Promise<Map<number, number | null>>
+  ): Promise<number> {
+    const current = await this.getQuestScoringConfig(
+      discordGuildId,
+      forgeChannelId
+    );
+    if (!current) {
+      throw new Error(
+        `setQuestScoringConfig: forge channel not enabled guild=${discordGuildId} channel=${forgeChannelId}`
+      );
+    }
+    let weights =
+      input.mode !== "default" && current.mode === "default"
+        ? { ...DEFAULT_QUEST_SCORING_WEIGHTS }
+        : { ...current.weights };
+    if (input.weightsPatch) {
+      for (const [k, v] of Object.entries(input.weightsPatch)) {
+        if (typeof v === "number" && Number.isFinite(v)) {
+          weights[k] = v;
+        }
+      }
+    }
+    weights = mergeQuestScoringWeights(weights);
+
+    await this.db
+      .update(schema.forgeEnabledChannels)
+      .set({
+        questLeaderboardScoringMode: input.mode,
+        questScoringWeights: weights,
+      })
+      .where(
+        and(
+          eq(schema.forgeEnabledChannels.discordGuildId, discordGuildId),
+          eq(schema.forgeEnabledChannels.discordChannelId, forgeChannelId)
+        )
+      );
+
+    return await this.recalculateQuestCompletionPointsForScope(
+      discordGuildId,
+      forgeChannelId,
+      getTiers
+    );
+  }
+
+  private async recalculateQuestCompletionPointsForScope(
+    discordGuildId: string,
+    forgeChannelId: string,
+    getTiers: (itemIds: number[]) => Promise<Map<number, number | null>>
+  ): Promise<number> {
+    const cfg = await this.getQuestScoringConfig(
+      discordGuildId,
+      forgeChannelId
+    );
+    if (!cfg) return 0;
+
+    const pageSize = 200;
+    let offset = 0;
+    let updated = 0;
+
+    for (;;) {
+      const rows = await this.db
+        .select({
+          id: schema.questCompletions.id,
+          requireStacks: schema.questCompletions.requireStacks,
+        })
+        .from(schema.questCompletions)
+        .where(
+          and(
+            eq(schema.questCompletions.discordGuildId, discordGuildId),
+            eq(schema.questCompletions.forgeChannelId, forgeChannelId)
+          )
+        )
+        .orderBy(asc(schema.questCompletions.id))
+        .limit(pageSize)
+        .offset(offset);
+      if (rows.length === 0) break;
+
+      const allIds = new Set<number>();
+      for (const r of rows) {
+        for (const s of parseCompletionStacks(r.requireStacks)) {
+          allIds.add(s.itemId);
+        }
+      }
+      const tierByItemId = new Map<number, number | null | undefined>();
+      const tierRows = await getTiers([...allIds]);
+      for (const id of allIds) {
+        if (tierRows.has(id)) tierByItemId.set(id, tierRows.get(id)!);
+      }
+
+      for (const r of rows) {
+        const stacks = parseCompletionStacks(r.requireStacks);
+        const pts = computeLeaderboardPoints({
+          mode: cfg.mode,
+          requiredStacks: stacks,
+          tierByItemId,
+          weights: cfg.weights,
+        });
+        await this.db
+          .update(schema.questCompletions)
+          .set({ leaderboardPoints: pts })
+          .where(eq(schema.questCompletions.id, r.id));
+        updated += 1;
+      }
+      offset += pageSize;
+    }
+
+    return updated;
   }
 
   async questLeaderboard(
@@ -369,10 +546,11 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
     forgeChannelId: string,
     limit: number
   ): Promise<QuestLeaderboardRow[]> {
+    const pointsSum = sum(schema.questCompletions.leaderboardPoints);
     const rows = await this.db
       .select({
         subjectKey: schema.questCompletions.subjectKey,
-        completions: count(),
+        pointsSum,
       })
       .from(schema.questCompletions)
       .where(
@@ -382,11 +560,11 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
         )
       )
       .groupBy(schema.questCompletions.subjectKey)
-      .orderBy(desc(count()))
+      .orderBy(desc(pointsSum))
       .limit(limit);
     return rows.map((r) => ({
       subjectKey: r.subjectKey,
-      completions: Number(r.completions),
+      points: Number(r.pointsSum ?? 0),
     }));
   }
 
