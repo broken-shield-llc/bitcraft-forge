@@ -52,8 +52,6 @@ Rows from the entity tables above are upserted into local cache tables (see `pac
 
 When a monitored barter completes, Forge inserts a `quest_completions` row with `offer_stacks`, `require_stacks` (JSON), and `leaderboard_points` derived from the scope’s scoring mode and tier weights. Changing mode or weights via `/forge quest scoring set` **recomputes** `leaderboard_points` for all completions in that scope from the stored require stacks and current item cache tiers.
 
-Drizzle migrations live under `packages/db/drizzle/`: **`0000_init`**, **`0001_quest_announcement_targets`**, and **`0002_quest_scoring`** (quest scoring columns + baseline data updates). After changing migration history locally, reset the database (e.g. recreate the DB or `DROP SCHEMA public CASCADE` / recreate) so `0000` can run on a clean slate.
-
 ## Discord commands
 
 Commands are registered when the bot starts: **guild** commands if `FORGE_DISCORD_GUILD_ID` is set, otherwise **global** commands (Discord can take up to about an hour to propagate global commands).
