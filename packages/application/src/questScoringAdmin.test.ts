@@ -5,27 +5,30 @@ import {
   executeQuestScoringShow,
 } from "./questScoringAdmin.js";
 
+const entityCacheRepo = {
+  getItemCraftingTiers: vi.fn().mockResolvedValue(new Map()),
+};
+
 describe("executeQuestScoringShow", () => {
+  const showRepo = {
+    getQuestScoringConfig: vi.fn(),
+    setQuestScoringConfig: vi.fn(),
+  };
+
   it("returns not-enabled copy when config is missing", async () => {
-    const deps = {
-      repo: {
-        getQuestScoringConfig: vi.fn().mockResolvedValue(null),
-      },
-    };
+    showRepo.getQuestScoringConfig.mockResolvedValue(null);
+    const deps = { repo: showRepo, entityCacheRepo };
     const { content } = await executeQuestScoringShow("g1", "c1", deps);
     expect(content).toContain("not forge-enabled");
-    expect(deps.repo.getQuestScoringConfig).toHaveBeenCalledWith("g1", "c1");
+    expect(showRepo.getQuestScoringConfig).toHaveBeenCalledWith("g1", "c1");
   });
 
   it("omits weights for default mode", async () => {
-    const deps = {
-      repo: {
-        getQuestScoringConfig: vi.fn().mockResolvedValue({
-          mode: "default",
-          weights: mergeQuestScoringWeights(null),
-        }),
-      },
-    };
+    showRepo.getQuestScoringConfig.mockResolvedValue({
+      mode: "default",
+      weights: mergeQuestScoringWeights(null),
+    });
+    const deps = { repo: showRepo, entityCacheRepo };
     const { content } = await executeQuestScoringShow("g1", "c1", deps);
     expect(content).toContain("Mode: **default**");
     expect(content).not.toContain("Weights:");
@@ -33,18 +36,15 @@ describe("executeQuestScoringShow", () => {
   });
 
   it("includes weights with tier_* labels for weighted modes", async () => {
-    const deps = {
-      repo: {
-        getQuestScoringConfig: vi.fn().mockResolvedValue({
-          mode: "weighted_require_sum",
-          weights: mergeQuestScoringWeights({
-            untiered: 1,
-            "1": 1,
-            "2": 2,
-          }),
-        }),
-      },
-    };
+    showRepo.getQuestScoringConfig.mockResolvedValue({
+      mode: "weighted_require_sum",
+      weights: mergeQuestScoringWeights({
+        untiered: 1,
+        "1": 1,
+        "2": 2,
+      }),
+    });
+    const deps = { repo: showRepo, entityCacheRepo };
     const { content } = await executeQuestScoringShow("g1", "c1", deps);
     expect(content).toContain("Mode: **weighted sum**");
     expect(content).toContain("Weights:");
@@ -55,10 +55,6 @@ describe("executeQuestScoringShow", () => {
 });
 
 describe("executeQuestScoringSet", () => {
-  const entityCacheRepo = {
-    getItemCraftingTiers: vi.fn().mockResolvedValue(new Map()),
-  };
-
   it("delegates to repo and formats singular recalc line", async () => {
     const setQuestScoringConfig = vi.fn().mockResolvedValue(1);
     const cfg = {
