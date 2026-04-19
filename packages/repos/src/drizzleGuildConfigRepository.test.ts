@@ -58,28 +58,34 @@ describe("DrizzleGuildConfigRepository.recordQuestCompletion", () => {
   it("returns ok after ensureGuild + quest completion insert (no duplicate handling)", async () => {
     const db = createMockDbForRecordQuestCompletion();
     const repo = new DrizzleGuildConfigRepository(db);
-    const r = await repo.recordQuestCompletion(
-      "guild1",
-      "forge-ch",
-      "building99",
-      "quest42",
-      "s:deadbeef"
-    );
+    const r = await repo.recordQuestCompletion({
+      discordGuildId: "guild1",
+      forgeChannelId: "forge-ch",
+      buildingId: "building99",
+      questEntityId: "quest42",
+      subjectKey: "s:deadbeef",
+      offerStacks: [],
+      requireStacks: [],
+      leaderboardPoints: 1,
+    });
     expect(r).toBe("ok");
   });
 
   it("allows repeated identical keys (second completion still ok)", async () => {
     const db = createMockDbForRecordQuestCompletion();
     const repo = new DrizzleGuildConfigRepository(db);
-    const args = [
-      "guild1",
-      "forge-ch",
-      "b1",
-      "q1",
-      "s:same",
-    ] as const;
-    expect(await repo.recordQuestCompletion(...args)).toBe("ok");
-    expect(await repo.recordQuestCompletion(...args)).toBe("ok");
+    const input = {
+      discordGuildId: "guild1",
+      forgeChannelId: "forge-ch",
+      buildingId: "b1",
+      questEntityId: "q1",
+      subjectKey: "s:same",
+      offerStacks: [] as { itemId: number; quantity: number }[],
+      requireStacks: [] as { itemId: number; quantity: number }[],
+      leaderboardPoints: 1,
+    };
+    expect(await repo.recordQuestCompletion(input)).toBe("ok");
+    expect(await repo.recordQuestCompletion(input)).toBe("ok");
   });
 });
 

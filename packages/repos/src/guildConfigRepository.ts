@@ -1,4 +1,8 @@
-import type { BuildingKind } from "@forge/domain";
+import type {
+  BuildingKind,
+  ItemStackLike,
+  QuestLeaderboardScoringMode,
+} from "@forge/domain";
 
 export type AddResult = "ok" | "duplicate";
 
@@ -11,7 +15,24 @@ export type MonitoredBuildingRow = {
 export type QuestLeaderboardRow = {
   /** `d:<discordUserId>` or `s:<stdbIdentityHex>`. */
   subjectKey: string;
-  completions: number;
+  /** Sum of `leaderboard_points` for this subject in the scope. */
+  points: number;
+};
+
+export type RecordQuestCompletionInput = {
+  discordGuildId: string;
+  forgeChannelId: string;
+  buildingId: string;
+  questEntityId: string;
+  subjectKey: string;
+  offerStacks: ItemStackLike[];
+  requireStacks: ItemStackLike[];
+  leaderboardPoints: number;
+};
+
+export type QuestScoringConfigView = {
+  mode: QuestLeaderboardScoringMode;
+  weights: Record<string, number>;
 };
 
 export type MonitoredBuildingScopePair = {
@@ -123,13 +144,26 @@ export interface GuildConfigRepository {
     buildingId: string
   ): Promise<boolean>;
 
-  recordQuestCompletion(
+  recordQuestCompletion(input: RecordQuestCompletionInput): Promise<AddResult>;
+
+  getQuestScoringConfig(
+    discordGuildId: string,
+    forgeChannelId: string
+  ): Promise<QuestScoringConfigView | null>;
+
+  /**
+   * Persists scoring mode + merged weights, then recomputes `leaderboard_points` for all completions in the scope.
+   */
+  setQuestScoringConfig(
     discordGuildId: string,
     forgeChannelId: string,
-    buildingId: string,
-    questEntityId: string,
-    subjectKey: string
-  ): Promise<AddResult>;
+    input: {
+      mode: QuestLeaderboardScoringMode;
+      weightsPatch?: Partial<Record<string, number>> | null;
+    },
+    getTiers: (itemIds: number[]) => Promise<Map<number, number | null>>
+  ): Promise<number>;
+
   questLeaderboard(
     discordGuildId: string,
     forgeChannelId: string,

@@ -14,6 +14,7 @@ describe("executeForgeEnable", () => {
     };
     const { content } = await executeForgeEnable("g1", "c1", deps);
     expect(content).toContain("BitCraft Forge is enabled");
+    expect(content).toContain("quest scoring");
     expect(deps.repo.enableForgeChannel).toHaveBeenCalledWith("g1", "c1");
   });
 

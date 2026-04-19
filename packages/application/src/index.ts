@@ -47,3 +47,9 @@ export {
   type QuestLeaderboardDeps,
   type QuestLeaderboardResetDeps,
 } from "./questLeaderboard.js";
+export {
+  executeQuestScoringSet,
+  executeQuestScoringShow,
+  type QuestScoringAdminDeps,
+  type QuestScoringSetInput,
+} from "./questScoringAdmin.js";

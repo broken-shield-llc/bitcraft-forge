@@ -44,6 +44,111 @@ export function buildForgeSlashCommand(commandName: string) {
               "Clear the quest leaderboard for this channel's scope"
             )
         )
+        .addSubcommand((s) =>
+          s
+            .setName("scoring")
+            .setDescription(
+              "View or set quest leaderboard scoring (Manage Server)"
+            )
+            .addStringOption((o) =>
+              o
+                .setName("action")
+                .setDescription("Show current config or apply new settings")
+                .setRequired(true)
+                .addChoices(
+                  { name: "show", value: "show" },
+                  { name: "set", value: "set" }
+                )
+            )
+            .addStringOption((o) =>
+              o
+                .setName("mode")
+                .setDescription("Scoring mode (required when action is set)")
+                .setRequired(false)
+                .addChoices(
+                  { name: "default", value: "default" },
+                  { name: "weighted max", value: "weighted_require_max" },
+                  { name: "weighted sum", value: "weighted_require_sum" }
+                )
+            )
+            .addIntegerOption((o) =>
+              o
+                .setName("untiered")
+                .setDescription("Weight for untiered / tier 0 items (set only)")
+                .setRequired(false)
+                .setMinValue(0)
+            )
+            .addIntegerOption((o) =>
+              o
+                .setName("tier_1")
+                .setDescription("Weight for tier 1 (set only)")
+                .setRequired(false)
+                .setMinValue(0)
+            )
+            .addIntegerOption((o) =>
+              o
+                .setName("tier_2")
+                .setDescription("Weight for tier 2 (set only)")
+                .setRequired(false)
+                .setMinValue(0)
+            )
+            .addIntegerOption((o) =>
+              o
+                .setName("tier_3")
+                .setDescription("Weight for tier 3 (set only)")
+                .setRequired(false)
+                .setMinValue(0)
+            )
+            .addIntegerOption((o) =>
+              o
+                .setName("tier_4")
+                .setDescription("Weight for tier 4 (set only)")
+                .setRequired(false)
+                .setMinValue(0)
+            )
+            .addIntegerOption((o) =>
+              o
+                .setName("tier_5")
+                .setDescription("Weight for tier 5 (set only)")
+                .setRequired(false)
+                .setMinValue(0)
+            )
+            .addIntegerOption((o) =>
+              o
+                .setName("tier_6")
+                .setDescription("Weight for tier 6 (set only)")
+                .setRequired(false)
+                .setMinValue(0)
+            )
+            .addIntegerOption((o) =>
+              o
+                .setName("tier_7")
+                .setDescription("Weight for tier 7 (set only)")
+                .setRequired(false)
+                .setMinValue(0)
+            )
+            .addIntegerOption((o) =>
+              o
+                .setName("tier_8")
+                .setDescription("Weight for tier 8 (set only)")
+                .setRequired(false)
+                .setMinValue(0)
+            )
+            .addIntegerOption((o) =>
+              o
+                .setName("tier_9")
+                .setDescription("Weight for tier 9 (set only)")
+                .setRequired(false)
+                .setMinValue(0)
+            )
+            .addIntegerOption((o) =>
+              o
+                .setName("tier_10")
+                .setDescription("Weight for tier 10+ (set only)")
+                .setRequired(false)
+                .setMinValue(0)
+            )
+        )
     )
     .addSubcommandGroup((g) =>
       g

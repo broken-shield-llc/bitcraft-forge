@@ -65,8 +65,8 @@ describe("executeQuestLeaderboard", () => {
     const deps = {
       repo: {
         questLeaderboard: vi.fn().mockResolvedValue([
-          { subjectKey: "d:123456789", completions: 5 },
-          { subjectKey: "s:deadbeef", completions: 2 },
+          { subjectKey: "d:123456789", points: 5 },
+          { subjectKey: "s:deadbeef", points: 2 },
         ]),
       },
       entityCacheRepo,
@@ -75,8 +75,8 @@ describe("executeQuestLeaderboard", () => {
       limit: 10,
     });
     expect(content).toContain("**Quest Leaderboard**");
-    expect(content).toContain("1. <@123456789> — **5**");
-    expect(content).toContain("2. Traveler — **2**");
+    expect(content).toContain("1. <@123456789> — **5** points");
+    expect(content).toContain("2. Traveler — **2** points");
     expect(deps.entityCacheRepo.getTravelerUsernameForIdentity).toHaveBeenCalledWith(
       "deadbeef"
     );
@@ -86,7 +86,7 @@ describe("executeQuestLeaderboard", () => {
     const deps = {
       repo: {
         questLeaderboard: vi.fn().mockResolvedValue([
-          { subjectKey: "s:abc", completions: 1 },
+          { subjectKey: "s:abc", points: 1 },
         ]),
       },
       entityCacheRepo: {
@@ -94,7 +94,7 @@ describe("executeQuestLeaderboard", () => {
       },
     };
     const { content } = await executeQuestLeaderboard("g1", "c1", deps);
-    expect(content).toContain("1. TraderJo — **1**");
+    expect(content).toContain("1. TraderJo — **1** points");
   });
 
   it("respects custom limit", async () => {

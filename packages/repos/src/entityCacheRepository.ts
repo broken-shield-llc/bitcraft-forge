@@ -24,6 +24,8 @@ export interface EntityCacheRepository {
   deleteItem(itemId: number): Promise<void>;
   getItemNames(itemIds: number[]): Promise<Map<number, string>>;
   getItemRarityTags(itemIds: number[]): Promise<Map<number, string>>;
+  /** `ItemDesc.tier` from cached payload; omitted ids have no cache row yet. */
+  getItemCraftingTiers(itemIds: number[]): Promise<Map<number, number | null>>;
 
   upsertClaim(
     claimEntityId: string,

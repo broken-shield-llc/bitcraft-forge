@@ -4,5 +4,6 @@ export * from "./guildScopedId.js";
 export * from "./normalizeRegionRow.js";
 export * from "./inventoryPayload.js";
 export * from "./quest.js";
+export * from "./questScoring.js";
 export * from "./questBoard.js";
 export * from "./questPorts.js";

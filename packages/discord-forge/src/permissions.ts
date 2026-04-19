@@ -15,7 +15,7 @@ export function requireManageGuild(
 /**
  * For per-channel Forge scope: **Manage Server** *or* **Manage Channels** on the channel
  * where the command is run. Lets settlement leads who moderate a channel (without full
- * server admin) configure watches, announcements target, and leaderboard reset.
+ * server admin) configure watches, announcements target, quest scoring, and leaderboard reset.
  */
 export function requireForgeChannelManage(
   interaction: ChatInputCommandInteraction

@@ -106,7 +106,7 @@ export async function executeQuestLeaderboard(
   );
   const lines = rows.map(
     (r, i) =>
-      `${i + 1}. ${leaderboardPlayerLine(r.subjectKey, nameBySubject)} — **${r.completions}**`
+      `${i + 1}. ${leaderboardPlayerLine(r.subjectKey, nameBySubject)} — **${r.points}** points`
   );
   return { content: formatLeaderboardReply(lines.join("\n")) };
 }

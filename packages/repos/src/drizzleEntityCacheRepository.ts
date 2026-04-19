@@ -92,6 +92,30 @@ export class DrizzleEntityCacheRepository implements EntityCacheRepository {
     return out;
   }
 
+  async getItemCraftingTiers(
+    itemIds: number[]
+  ): Promise<Map<number, number | null>> {
+    const out = new Map<number, number | null>();
+    if (itemIds.length === 0) return out;
+    const uniq = [...new Set(itemIds)];
+    const rows = await this.db
+      .select({
+        itemId: schema.stdbItemCache.itemId,
+        payload: schema.stdbItemCache.payload,
+      })
+      .from(schema.stdbItemCache)
+      .where(inArray(schema.stdbItemCache.itemId, uniq));
+    for (const r of rows) {
+      const tier = (r.payload as Record<string, unknown>).tier;
+      if (typeof tier === "number" && Number.isFinite(tier)) {
+        out.set(r.itemId, tier);
+      } else {
+        out.set(r.itemId, null);
+      }
+    }
+    return out;
+  }
+
   async upsertClaim(
     claimEntityId: string,
     payload: Record<string, unknown>,

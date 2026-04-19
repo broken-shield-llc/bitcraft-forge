@@ -18,10 +18,16 @@ import {
   executeQuestBoardList,
   executeQuestLeaderboard,
   executeQuestLeaderboardReset,
+  executeQuestScoringSet,
+  executeQuestScoringShow,
   executeSetQuestAnnouncementTarget,
   forgeChannelNotEnabledMessage,
   type QuestAnnouncementTargetKey,
 } from "@forge/application";
+import {
+  QUEST_LEADERBOARD_SCORING_MODES,
+  type QuestLeaderboardScoringMode,
+} from "@forge/domain";
 import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
@@ -131,6 +137,32 @@ function forgeScopeChannelId(
   const ch = interaction.channel;
   if (!ch?.isTextBased() || !interaction.channelId) return undefined;
   return interaction.channelId;
+}
+
+const QUEST_SCORING_WEIGHT_OPTION_KEYS: [option: string, jsonKey: string][] =
+  [
+    ["untiered", "untiered"],
+    ["tier_1", "1"],
+    ["tier_2", "2"],
+    ["tier_3", "3"],
+    ["tier_4", "4"],
+    ["tier_5", "5"],
+    ["tier_6", "6"],
+    ["tier_7", "7"],
+    ["tier_8", "8"],
+    ["tier_9", "9"],
+    ["tier_10", "10"],
+  ];
+
+function collectQuestScoringWeightsPatch(
+  interaction: ChatInputCommandInteraction
+): Partial<Record<string, number>> | undefined {
+  const patch: Partial<Record<string, number>> = {};
+  for (const [opt, key] of QUEST_SCORING_WEIGHT_OPTION_KEYS) {
+    const v = interaction.options.getInteger(opt, false);
+    if (v != null) patch[key] = v;
+  }
+  return Object.keys(patch).length > 0 ? patch : undefined;
 }
 
 export async function handleForgeInteraction(
@@ -335,6 +367,53 @@ export async function handleForgeInteraction(
             ctx.config.questLeaderboardBannerUrl
           )
         );
+        return;
+      }
+
+      if (sub === "scoring") {
+        if (!requireForgeChannelManage(interaction)) {
+          await editReplyCatchUnknown(interaction, {
+            content:
+              "You need **Manage Server** or **Manage Channels** to view or set quest leaderboard scoring for this channel.",
+          });
+          return;
+        }
+        const action = interaction.options.getString("action", true);
+        if (action === "show") {
+          const { content } = await executeQuestScoringShow(
+            guildId,
+            forgeChannelId,
+            {
+              repo: ctx.repo,
+              entityCacheRepo: ctx.entityCacheRepo,
+            }
+          );
+          await editReplyCatchUnknown(interaction, { content });
+          return;
+        }
+        const modeRaw = interaction.options.getString("mode");
+        const known = QUEST_LEADERBOARD_SCORING_MODES as readonly string[];
+        if (!modeRaw || !known.includes(modeRaw)) {
+          await editReplyCatchUnknown(interaction, {
+            content:
+              "When **action** is `set`, choose a **mode** from the command options (required).",
+          });
+          return;
+        }
+        const weightsPatch = collectQuestScoringWeightsPatch(interaction);
+        const { content } = await executeQuestScoringSet(
+          guildId,
+          forgeChannelId,
+          {
+            mode: modeRaw as QuestLeaderboardScoringMode,
+            weightsPatch,
+          },
+          {
+            repo: ctx.repo,
+            entityCacheRepo: ctx.entityCacheRepo,
+          }
+        );
+        await editReplyCatchUnknown(interaction, { content });
         return;
       }
 
