@@ -18,6 +18,11 @@ import {
   type ParsedQuestBoardCustomId,
   questBoardEditPayload,
 } from "./questBoardDiscord.js";
+import {
+  clearQuestBoardDetailState,
+  getQuestBoardDetailState,
+  setQuestBoardDetailState,
+} from "./questBoardDetailState.js";
 
 function questBoardDeps(ctx: ForgeInteractionContext) {
   return {
@@ -119,7 +124,8 @@ export async function handleForgeQuestBoardSelect(
       scope.guildId,
       forgeChannelId,
       shopId,
-      questBoardDeps(ctx)
+      questBoardDeps(ctx),
+      0
     );
     if (d.kind === "not_found") {
       await editReplyPlain(interaction, d.content, []);
@@ -130,9 +136,18 @@ export async function handleForgeQuestBoardSelect(
       d.content,
       ctx,
       buildQuestBoardDetailComponents(
-        forgeChannelId
+        forgeChannelId,
+        {
+          currentOfferPage: d.offerPage,
+          totalOfferPages: d.totalOfferPages,
+        }
       ) as InteractionEditReplyOptions["components"]
     );
+    setQuestBoardDetailState(interaction.message.id, {
+      shopEntityIdStr: shopId,
+      offerPage: d.offerPage,
+      totalOfferPages: d.totalOfferPages,
+    });
   } catch (e: unknown) {
     ctx.log.error("forge quest board select failed", e);
     if (isUnknownInteractionError(e)) return;
@@ -151,7 +166,10 @@ export async function handleForgeQuestBoardSelect(
 export async function handleForgeQuestBoardButton(
   interaction: ButtonInteraction,
   ctx: ForgeInteractionContext,
-  parsed: Extract<ParsedQuestBoardCustomId, { type: "back" | "page" }>
+  parsed: Extract<
+    ParsedQuestBoardCustomId,
+    { type: "back" | "page" | "detail_prev" | "detail_next" }
+  >
 ): Promise<void> {
   const forgeChannelId = parsed.forgeChannelId;
   const guildId = interaction.guildId;
@@ -179,6 +197,61 @@ export async function handleForgeQuestBoardButton(
     }
     const scope = await requireQuestBoardChannel(interaction, ctx, forgeChannelId);
     if (!scope) return;
+
+    if (parsed.type === "detail_prev" || parsed.type === "detail_next") {
+      const st = getQuestBoardDetailState(interaction.message.id);
+      if (!st) {
+        await editReplyQuestBoard(
+          interaction,
+          "This quest board view is out of date. Run the quest **board** command and pick a shop again.",
+          ctx,
+          []
+        );
+        return;
+      }
+      const delta = parsed.type === "detail_next" ? 1 : -1;
+      const next = Math.max(
+        0,
+        Math.min(
+          st.totalOfferPages - 1,
+          st.offerPage + delta
+        )
+      );
+      const d = await executeQuestBoardShopDetail(
+        scope.guildId,
+        forgeChannelId,
+        st.shopEntityIdStr,
+        questBoardDeps(ctx),
+        next
+      );
+      if (d.kind === "not_found") {
+        clearQuestBoardDetailState(interaction.message.id);
+        await editReplyPlain(interaction, d.content, []);
+        return;
+      }
+      setQuestBoardDetailState(interaction.message.id, {
+        shopEntityIdStr: st.shopEntityIdStr,
+        offerPage: d.offerPage,
+        totalOfferPages: d.totalOfferPages,
+      });
+      await editReplyQuestBoard(
+        interaction,
+        d.content,
+        ctx,
+        buildQuestBoardDetailComponents(
+          forgeChannelId,
+          {
+            currentOfferPage: d.offerPage,
+            totalOfferPages: d.totalOfferPages,
+          }
+        ) as InteractionEditReplyOptions["components"]
+      );
+      return;
+    }
+
+    if (parsed.type === "back") {
+      clearQuestBoardDetailState(interaction.message.id);
+    }
 
     const list = await executeQuestBoardList(
       scope.guildId,
