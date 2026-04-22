@@ -23,6 +23,7 @@ import {
   getQuestBoardDetailState,
   setQuestBoardDetailState,
 } from "./questBoardDetailState.js";
+import { getQuestBoardListRequireQuery } from "./questBoardRequireState.js";
 
 function questBoardDeps(ctx: ForgeInteractionContext) {
   return {
@@ -90,6 +91,10 @@ async function requireQuestBoardChannel(
   return { guildId };
 }
 
+function listRequireQueryForMessageId(messageId: string): string | null {
+  return getQuestBoardListRequireQuery(messageId) ?? null;
+}
+
 export async function handleForgeQuestBoardSelect(
   interaction: StringSelectMenuInteraction,
   ctx: ForgeInteractionContext,
@@ -120,12 +125,14 @@ export async function handleForgeQuestBoardSelect(
       return;
     }
 
+    const listRq = listRequireQueryForMessageId(interaction.message.id);
     const d = await executeQuestBoardShopDetail(
       scope.guildId,
       forgeChannelId,
       shopId,
       questBoardDeps(ctx),
-      0
+      0,
+      listRq
     );
     if (d.kind === "not_found") {
       await editReplyPlain(interaction, d.content, []);
@@ -217,12 +224,14 @@ export async function handleForgeQuestBoardButton(
           st.offerPage + delta
         )
       );
+      const listRq = listRequireQueryForMessageId(interaction.message.id);
       const d = await executeQuestBoardShopDetail(
         scope.guildId,
         forgeChannelId,
         st.shopEntityIdStr,
         questBoardDeps(ctx),
-        next
+        next,
+        listRq
       );
       if (d.kind === "not_found") {
         clearQuestBoardDetailState(interaction.message.id);
@@ -253,11 +262,13 @@ export async function handleForgeQuestBoardButton(
       clearQuestBoardDetailState(interaction.message.id);
     }
 
+    const listRq = listRequireQueryForMessageId(interaction.message.id);
     const list = await executeQuestBoardList(
       scope.guildId,
       forgeChannelId,
       questBoardDeps(ctx),
-      page
+      page,
+      listRq
     );
     if (list.kind === "no_buildings" || list.kind === "no_offers") {
       await editReplyQuestBoard(interaction, list.content, ctx, []);

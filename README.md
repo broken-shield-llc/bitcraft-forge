@@ -12,7 +12,7 @@ Licensed under the [MIT License](LICENSE). See [SECURITY.md](SECURITY.md) for ho
 
 - **Per-channel scope** — Each Discord text channel can be enabled independently (`/forge enable`), with its own monitors, announcement routing, and leaderboard data.
 - **Monitors** — Track BitCraft **claims** and **barter buildings** (stall vs counter is inferred from game data).
-- **Quest board** — Lists active barter offers for buildings monitored in that channel’s scope.
+- **Quest board** — Lists active barter offers for buildings monitored in that channel’s scope (`/forge quest board`). Use **`/forge quest search`** with a required **`query`** to show the same kind of list and shop detail, but only for offers where a **required** turn-in item’s name **contains** that substring (case-insensitive, trimmed). The bot displays the query in the message (normalized to lowercase) while you page through results.
 - **Leaderboard** — Ranks members by **quest points** summed from barter completions at monitored buildings. Each completion stores a snapshot of **offer** and **require** item stacks (for analytics); scoring uses **require** stacks and each item’s **crafting tier** from cached `item_desc` (`tier` field).
 - **Quest scoring** — Per scope: **default** (always **1** point per completion), **weighted max**, or **weighted sum** (see slash command descriptions). When you turn on a weighted mode from **default**, tier weights start at **1** for untiered and tier 1 and **N** for tier N (2–10) until you override them. Channel leads use `/forge quest scoring` (**Manage Server** or **Manage Channels**).
 - **Announcements** — Optional text or announcement channels for debounced embeds when offers change or complete. `/forge channel set` can route a **default** stream or separate channels for **quest added**, **quest updated**, and **quest completion** traffic.
@@ -73,6 +73,7 @@ Unless noted, use commands in a **server text channel**.
 | `/forge enable`            | Turn on Forge for this channel's scope                                       | Manage Server                    |
 | `/forge disable`           | Turn off Forge for this channel's scope and clear its data                    | Manage Server                    |
 | `/forge quest board`†       | Active barter offers for this channel's scope                                 | Anyone                           |
+| `/forge quest search`†      | Like **quest board**, but only offers whose **required** item names match **`query`** (substring, case-insensitive). | Anyone                           |
 | `/forge quest leaderboard`† | Quest leaderboard for this channel's scope (totals **points**)                | Anyone                           |
 | `/forge quest scoring`†     | Show or set scoring mode and optional tier weights (`action` + `mode` when setting) | Manage Server or Manage Channels |
 | `/forge quest reset-leaderboard`† | Clear quest completions for this channel's scope                         | Manage Server or Manage Channels |
@@ -86,7 +87,7 @@ Unless noted, use commands in a **server text channel**.
 
 **† Requires Forge enabled for this channel** — Run `/forge enable` in this channel first (that command needs **Manage Server**). Applies to every command row marked with † above.
 
-The quest board may include buttons or selects; the bot uses the `Guilds` intent only.
+The quest board and quest search may include buttons or selects; the bot uses the `Guilds` intent only.
 
 ## Requirements
 

@@ -45,6 +45,7 @@ import {
   buildQuestBoardListComponents,
   questBoardEditPayload,
 } from "./questBoardDiscord.js";
+import { setQuestBoardListRequireQuery } from "./questBoardRequireState.js";
 
 export type ForgeInteractionContext = {
   config: ForgeConfig;
@@ -327,7 +328,8 @@ export async function handleForgeInteraction(
           guildId,
           forgeChannelId,
           questBoardListDeps(ctx),
-          0
+          0,
+          null
         );
         if (list.kind === "no_buildings" || list.kind === "no_offers") {
           await editReplyCatchUnknown(
@@ -338,6 +340,8 @@ export async function handleForgeInteraction(
               []
             )
           );
+          const m = await interaction.fetchReply();
+          setQuestBoardListRequireQuery(m.id, null);
           return;
         }
         await editReplyCatchUnknown(
@@ -348,6 +352,49 @@ export async function handleForgeInteraction(
             buildQuestBoardListComponents(list, forgeChannelId) as InteractionEditReplyOptions["components"]
           )
         );
+        const m = await interaction.fetchReply();
+        setQuestBoardListRequireQuery(m.id, null);
+        return;
+      }
+
+      if (sub === "search") {
+        const queryRaw = interaction.options.getString("query", true).trim();
+        if (queryRaw.length === 0) {
+          await editReplyCatchUnknown(interaction, {
+            content: "Search query cannot be empty.",
+          });
+          return;
+        }
+        const list = await executeQuestBoardList(
+          guildId,
+          forgeChannelId,
+          questBoardListDeps(ctx),
+          0,
+          queryRaw
+        );
+        if (list.kind === "no_buildings" || list.kind === "no_offers") {
+          await editReplyCatchUnknown(
+            interaction,
+            questBoardEditPayload(
+              list.content,
+              ctx.config.questBoardBannerUrl,
+              []
+            )
+          );
+          const m = await interaction.fetchReply();
+          setQuestBoardListRequireQuery(m.id, queryRaw);
+          return;
+        }
+        await editReplyCatchUnknown(
+          interaction,
+          questBoardEditPayload(
+            list.content,
+            ctx.config.questBoardBannerUrl,
+            buildQuestBoardListComponents(list, forgeChannelId) as InteractionEditReplyOptions["components"]
+          )
+        );
+        const m = await interaction.fetchReply();
+        setQuestBoardListRequireQuery(m.id, queryRaw);
         return;
       }
 

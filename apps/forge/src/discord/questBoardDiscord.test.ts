@@ -17,6 +17,13 @@ describe("stripQuestBoardTitleLine", () => {
     expect(stripQuestBoardTitleLine("**Quest board**\nHello")).toBe("Hello");
   });
 
+  it("removes the search variant first line for banner embeds", () => {
+    expect(
+      stripQuestBoardTitleLine("**Quest board** — search: **ingot**\n\nNext")
+    ).toBe("Next");
+  });
+
+
   it("leaves text without title unchanged", () => {
     expect(stripQuestBoardTitleLine("No title here")).toBe("No title here");
   });
@@ -69,6 +76,7 @@ describe("questBoardEditPayload", () => {
           offerCount: 1,
         },
       ],
+      requireQuery: null,
     } satisfies Extract<QuestBoardListResult, { kind: "list" }>;
 
     const components = buildQuestBoardListComponents(list, "900000000000000001");
