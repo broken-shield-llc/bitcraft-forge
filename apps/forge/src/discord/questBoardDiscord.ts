@@ -16,7 +16,9 @@ const QB_SEP = "|";
 export type ParsedQuestBoardCustomId =
   | { type: "shop"; forgeChannelId: string }
   | { type: "back"; forgeChannelId: string }
-  | { type: "page"; page: number; forgeChannelId: string };
+  | { type: "page"; page: number; forgeChannelId: string }
+  | { type: "detail_prev"; forgeChannelId: string }
+  | { type: "detail_next"; forgeChannelId: string };
 
 export function forgeQbShopCustomId(forgeChannelId: string): string {
   return `forge_qb_shop${QB_SEP}${forgeChannelId}`;
@@ -33,6 +35,14 @@ export function forgeQbPageCustomId(
   return `forge_qb_page${QB_SEP}${page}${QB_SEP}${forgeChannelId}`;
 }
 
+export function forgeQbDetailPrevCustomId(forgeChannelId: string): string {
+  return `forge_qb_dprev${QB_SEP}${forgeChannelId}`;
+}
+
+export function forgeQbDetailNextCustomId(forgeChannelId: string): string {
+  return `forge_qb_dnext${QB_SEP}${forgeChannelId}`;
+}
+
 export function parseForgeQuestBoardCustomId(
   customId: string
 ): ParsedQuestBoardCustomId | null {
@@ -45,6 +55,12 @@ export function parseForgeQuestBoardCustomId(
   }
   if (head === "forge_qb_back" && parts.length === 2) {
     return { type: "back", forgeChannelId: parts[1]! };
+  }
+  if (head === "forge_qb_dprev" && parts.length === 2) {
+    return { type: "detail_prev", forgeChannelId: parts[1]! };
+  }
+  if (head === "forge_qb_dnext" && parts.length === 2) {
+    return { type: "detail_next", forgeChannelId: parts[1]! };
   }
   if (head === "forge_qb_page" && parts.length === 3) {
     const page = Number(parts[1]);
@@ -143,12 +159,37 @@ export function buildQuestBoardListComponents(
   return rows;
 }
 
+export type QuestBoardDetailComponentsInput = {
+  currentOfferPage: number;
+  totalOfferPages: number;
+};
+
 export function buildQuestBoardDetailComponents(
-  forgeChannelId: string
+  forgeChannelId: string,
+  detail: QuestBoardDetailComponentsInput
 ): ActionRowBuilder[] {
   const back = new ButtonBuilder()
     .setCustomId(forgeQbBackCustomId(forgeChannelId))
     .setLabel("Back to shop list")
     .setStyle(ButtonStyle.Primary);
-  return [new ActionRowBuilder<ButtonBuilder>().addComponents(back)];
+
+  const prev = new ButtonBuilder()
+    .setCustomId(forgeQbDetailPrevCustomId(forgeChannelId))
+    .setLabel("Previous")
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(
+      detail.totalOfferPages <= 1 || detail.currentOfferPage <= 0
+    );
+  const next = new ButtonBuilder()
+    .setCustomId(forgeQbDetailNextCustomId(forgeChannelId))
+    .setLabel("Next")
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(
+      detail.totalOfferPages <= 1 ||
+        detail.currentOfferPage >= detail.totalOfferPages - 1
+    );
+
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(prev, back, next),
+  ];
 }

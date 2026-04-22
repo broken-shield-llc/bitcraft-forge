@@ -123,7 +123,12 @@ export async function startDiscordBot(
     if (interaction.isButton()) {
       if (isForgeQuestBoardComponent(interaction.customId)) {
         const p = parseForgeQuestBoardCustomId(interaction.customId);
-        if (p?.type === "back" || p?.type === "page") {
+        if (
+          p?.type === "back" ||
+          p?.type === "page" ||
+          p?.type === "detail_prev" ||
+          p?.type === "detail_next"
+        ) {
           await handleForgeQuestBoardButton(interaction, ictx, p);
         }
       }

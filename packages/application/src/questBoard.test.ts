@@ -155,6 +155,8 @@ describe("executeQuestBoardShopDetail", () => {
       expect(r.content).toContain("Gold ×2");
       expect(r.content).toContain("Iron ×1");
       expect(r.content).toContain("**Stock:** 3");
+      expect(r.totalOfferPages).toBe(1);
+      expect(r.offerCount).toBe(1);
     }
   });
 
@@ -187,6 +189,57 @@ describe("executeQuestBoardShopDetail", () => {
     if (r.kind === "ok") {
       expect(r.content).toContain("**✦ SPECIAL ✦**");
       expect(r.content).toContain("**__Epic Loot ×1__**");
+    }
+  });
+
+  it("paginates when many offers exceed the text budget", async () => {
+    const offers = Array.from({ length: 50 }, (_, i) =>
+      baseOffer({
+        questKey: `10:${i}`,
+        shopEntityIdStr: "10",
+        offerSummary: "offer",
+        requiredSummary: "req",
+        offerStacks: [{ itemId: 1, quantity: 1 }],
+        requiredStacks: [{ itemId: 2, quantity: 1 }],
+      })
+    );
+    const deps: QuestBoardDeps = {
+      repo: {
+        listBuildings: vi.fn().mockResolvedValue([{ buildingId: "10" }]),
+      },
+      entityCacheRepo: {
+        getInventoryBoardSnapshotForOwners: vi
+          .fn()
+          .mockResolvedValue(new Map()),
+        getItemNames: vi
+          .fn()
+          .mockResolvedValue(
+            new Map<number, string | undefined>([
+              [1, "A"],
+              [2, "B"],
+            ])
+          ),
+        getItemRarityTags: vi.fn().mockResolvedValue(new Map()),
+        getBuildingNicknames: vi
+          .fn()
+          .mockResolvedValue(new Map([["10", "Big Stall"]])),
+        getClaimNameForBuilding: vi.fn().mockResolvedValue("Claim"),
+      },
+      questOffers: {
+        snapshotForMonitoredBuildings: vi.fn().mockReturnValue(offers),
+      },
+    };
+    const r0 = await executeQuestBoardShopDetail("g1", "c1", "10", deps, 0);
+    expect(r0.kind).toBe("ok");
+    if (r0.kind !== "ok") return;
+    expect(r0.totalOfferPages).toBeGreaterThan(1);
+    expect(r0.offerCount).toBe(50);
+    expect(r0.content).toMatch(/_Page \*\*1\*\* of \*\*\d+\*\*_/);
+    const r1 = await executeQuestBoardShopDetail("g1", "c1", "10", deps, 1);
+    expect(r1.kind).toBe("ok");
+    if (r1.kind === "ok") {
+      expect(r1.offerPage).toBe(1);
+      expect(r1.content).toMatch(/_Page \*\*2\*\* of/);
     }
   });
 });

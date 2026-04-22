@@ -11,7 +11,6 @@ import {
 } from "@forge/domain";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
 
-const MAX_BOARD_OFFERS_HARD = 120;
 /** Shop detail body budget: Discord embed description max is 4096 chars; banner mode uses a separate image embed, text goes in the second embed. */
 const MAX_BOARD_CHARS = 1950;
 export const QUEST_BOARD_SHOPS_PER_PAGE = 25;
@@ -261,15 +260,121 @@ function buildOfferLines(
   return body;
 }
 
+function offerBlockText(
+  o: QuestOfferSnapshot,
+  itemNames: Map<number, string>,
+  rarityTags: Map<number, string>,
+  isFirstInPage: boolean
+): string {
+  const lines = buildOfferLines(o, itemNames, rarityTags);
+  const s = lines.join("\n");
+  return isFirstInPage ? s : `\n\n${s}`;
+}
+
+function buildShopBaseHeader(
+  claimDisplay: string,
+  buildingName: string,
+  offerCount: number
+): string {
+  const w = offerCount === 1 ? "offer" : "offers";
+  return [
+    "**Quest board**",
+    "",
+    `**${claimDisplay} - ${buildingName}** (${offerCount} ${w})`,
+    "",
+  ].join("\n");
+}
+
+function buildShopPageHeader(
+  baseHeader: string,
+  pageIdx: number,
+  totalPages: number
+): string {
+  if (totalPages <= 1) return baseHeader;
+  return `${baseHeader}_Page **${pageIdx + 1}** of **${totalPages}**_\n\n`;
+}
+
+/**
+ * Splits a shop’s offers into one string per "page" so each page fits the embed
+ * text budget, using the same per-offer layout as a single unbounded board.
+ */
+function splitShopOffersIntoPages(
+  shopOffers: QuestOfferSnapshot[],
+  itemNames: Map<number, string>,
+  rarityTags: Map<number, string>,
+  baseHeader: string
+): string[] {
+  const n = shopOffers.length;
+  if (n === 0) {
+    return [buildShopPageHeader(baseHeader, 0, 1) + "_No offers._"];
+  }
+
+  let full = buildShopPageHeader(baseHeader, 0, 1);
+  for (let i = 0; i < n; i++) {
+    full += offerBlockText(shopOffers[i]!, itemNames, rarityTags, i === 0);
+  }
+  if (full.length <= MAX_BOARD_CHARS) {
+    return [full];
+  }
+
+  const packHeader = `${baseHeader}_Page **99** of **99**_\n\n`;
+  const bodyBudget = MAX_BOARD_CHARS - packHeader.length;
+  if (bodyBudget < 32) {
+    return [full.slice(0, MAX_BOARD_CHARS - 3) + "…"];
+  }
+
+  const ranges: [number, number][] = [];
+  let start = 0;
+  while (start < n) {
+    let t = "";
+    let end = start;
+    for (let e = start; e < n; e++) {
+      const add = offerBlockText(shopOffers[e]!, itemNames, rarityTags, e === start);
+      const next = t + add;
+      if (next.length > bodyBudget && t.length > 0) {
+        break;
+      }
+      t = next;
+      end = e + 1;
+    }
+    if (end === start) {
+      end = start + 1;
+    }
+    ranges.push([start, end]);
+    start = end;
+  }
+
+  return ranges.map(([from, to], pageIdx) => {
+    const totalPages = ranges.length;
+    const head = buildShopPageHeader(baseHeader, pageIdx, totalPages);
+    let b = "";
+    for (let i = from; i < to; i++) {
+      b += offerBlockText(shopOffers[i]!, itemNames, rarityTags, i === from);
+    }
+    let out = head + b;
+    if (out.length > MAX_BOARD_CHARS) {
+      out = out.slice(0, MAX_BOARD_CHARS - 3) + "…";
+    }
+    return out;
+  });
+}
+
 export type QuestBoardShopDetailResult =
   | { kind: "not_found"; content: string }
-  | { kind: "ok"; content: string };
+  | {
+      kind: "ok";
+      content: string;
+      offerPage: number;
+      totalOfferPages: number;
+      offerCount: number;
+    };
 
 export async function executeQuestBoardShopDetail(
   discordGuildId: string,
   forgeChannelId: string,
   shopEntityIdStr: string,
-  deps: QuestBoardDeps
+  deps: QuestBoardDeps,
+  offerPage: number = 0
 ): Promise<QuestBoardShopDetailResult> {
   const cmd = deps.discordCommandName ?? "forge";
   const p = await prepareQuestBoard(discordGuildId, forgeChannelId, deps);
@@ -300,45 +405,27 @@ export async function executeQuestBoardShopDetail(
     void 0;
   }
   const claimDisplay = claimName?.trim() || "—";
-  const offerWord =
-    shopOffers.length === 1 ? "offer" : "offers";
-  const lines: string[] = [
-    "**Quest board**",
-    "",
-    `**${claimDisplay} - ${buildingName}** (${shopOffers.length} ${offerWord})`,
-    "",
-  ];
-
-  let shown = 0;
-  const footerAfterShown = (nextShown: number): string => {
-    const remaining = shopOffers.length - nextShown;
-    if (remaining <= 0) return "";
-    return `\n\n… and **${remaining}** more offers.`;
+  const baseHeader = buildShopBaseHeader(
+    claimDisplay,
+    buildingName,
+    shopOffers.length
+  );
+  const pages = splitShopOffersIntoPages(
+    shopOffers,
+    p.itemNames,
+    p.rarityTags,
+    baseHeader
+  );
+  const totalOfferPages = pages.length;
+  const safePage = Math.min(
+    Math.max(0, offerPage),
+    totalOfferPages - 1
+  );
+  return {
+    kind: "ok",
+    content: pages[safePage]!,
+    offerPage: safePage,
+    totalOfferPages,
+    offerCount: shopOffers.length,
   };
-
-  const fitsWithFooter = (nextLines: string[]): boolean => {
-    const foot = footerAfterShown(shown + 1);
-    const candidate = [...lines, ...nextLines].join("\n") + foot;
-    return candidate.length <= MAX_BOARD_CHARS;
-  };
-
-  for (const o of shopOffers) {
-    if (shown >= MAX_BOARD_OFFERS_HARD) break;
-    const offerLines = buildOfferLines(o, p.itemNames, p.rarityTags);
-    const block = shown > 0 ? ["", ...offerLines] : offerLines;
-    if (!fitsWithFooter(block)) break;
-    lines.push(...block);
-    shown += 1;
-  }
-
-  if (shown < shopOffers.length) {
-    lines.push("");
-    lines.push(`… and **${shopOffers.length - shown}** more offers.`);
-  }
-
-  let body = lines.join("\n");
-  if (body.length > MAX_BOARD_CHARS) {
-    body = body.slice(0, MAX_BOARD_CHARS - 3) + "…";
-  }
-  return { kind: "ok", content: body };
 }

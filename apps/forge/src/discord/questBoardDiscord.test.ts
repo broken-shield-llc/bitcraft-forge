@@ -2,8 +2,11 @@ import type { InteractionEditReplyOptions } from "discord.js";
 import { describe, expect, it } from "vitest";
 import type { QuestBoardListResult } from "@forge/application";
 import {
+  buildQuestBoardDetailComponents,
   buildQuestBoardEmbeds,
   buildQuestBoardListComponents,
+  isForgeQuestBoardComponent,
+  parseForgeQuestBoardCustomId,
   questBoardEditPayload,
   stripQuestBoardTitleLine,
 } from "./questBoardDiscord.js";
@@ -77,5 +80,54 @@ describe("questBoardEditPayload", () => {
     expect(payload.content).toBe("");
     expect(payload.embeds).toHaveLength(2);
     expect(payload.components).toBe(components);
+  });
+});
+
+describe("parseForgeQuestBoardCustomId", () => {
+  it("parses shop detail prev/next", () => {
+    expect(parseForgeQuestBoardCustomId("forge_qb_dprev|900000000000000001")).toEqual(
+      { type: "detail_prev", forgeChannelId: "900000000000000001" }
+    );
+    expect(parseForgeQuestBoardCustomId("forge_qb_dnext|900000000000000001")).toEqual(
+      { type: "detail_next", forgeChannelId: "900000000000000001" }
+    );
+  });
+});
+
+describe("isForgeQuestBoardComponent", () => {
+  it("is true for known quest board custom ids (including shop detail nav)", () => {
+    expect(isForgeQuestBoardComponent("forge_qb_shop|1")).toBe(true);
+    expect(isForgeQuestBoardComponent("forge_qb_back|1")).toBe(true);
+    expect(isForgeQuestBoardComponent("forge_qb_page|0|1")).toBe(true);
+    expect(isForgeQuestBoardComponent("forge_qb_dprev|1")).toBe(true);
+    expect(isForgeQuestBoardComponent("forge_qb_dnext|1")).toBe(true);
+  });
+
+  it("is false for unrelated ids", () => {
+    expect(isForgeQuestBoardComponent("other_btn|1")).toBe(false);
+  });
+});
+
+describe("buildQuestBoardDetailComponents", () => {
+  it("returns one row with back and prev/next", () => {
+    const rows = buildQuestBoardDetailComponents("900000000000000001", {
+      currentOfferPage: 1,
+      totalOfferPages: 3,
+    });
+    expect(rows).toHaveLength(1);
+    const row0 = rows[0]!.toJSON();
+    expect(row0.components).toHaveLength(3);
+  });
+
+  it("disables both nav when only one offer page", () => {
+    const rows = buildQuestBoardDetailComponents("900000000000000001", {
+      currentOfferPage: 0,
+      totalOfferPages: 1,
+    });
+    const cs = rows[0]!.toJSON().components as { disabled?: boolean; label: string }[];
+    const prevB = cs.find((c) => c.label === "Previous");
+    const nextB = cs.find((c) => c.label === "Next");
+    expect(prevB?.disabled).toBe(true);
+    expect(nextB?.disabled).toBe(true);
   });
 });
