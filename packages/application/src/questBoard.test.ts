@@ -109,6 +109,135 @@ describe("executeQuestBoardList", () => {
       expect(r.shops).toHaveLength(1);
       expect(r.shops[0]?.shopEntityIdStr).toBe("10");
       expect(r.shops[0]?.label).toContain("Stall One");
+      expect(r.requireQuery).toBeNull();
+    }
+  });
+
+  it("filters shops by required item name (case-insensitive)", async () => {
+    const a = baseOffer({
+      questKey: "10:1",
+      shopEntityIdStr: "10",
+      offerStacks: [{ itemId: 1, quantity: 1 }],
+      requiredStacks: [{ itemId: 5, quantity: 1 }],
+    });
+    const b = baseOffer({
+      questKey: "11:1",
+      shopEntityIdStr: "11",
+      offerStacks: [{ itemId: 1, quantity: 1 }],
+      requiredStacks: [{ itemId: 6, quantity: 1 }],
+    });
+    const deps: QuestBoardDeps = {
+      repo: {
+        listBuildings: vi
+          .fn()
+          .mockResolvedValue([{ buildingId: "10" }, { buildingId: "11" }]),
+      },
+      entityCacheRepo: {
+        getInventoryBoardSnapshotForOwners: vi
+          .fn()
+          .mockResolvedValue(new Map()),
+        getItemNames: vi.fn().mockResolvedValue(
+          new Map<number, string | undefined>([
+            [1, "Coin"],
+            [5, "Gold Ingot"],
+            [6, "Stone"],
+          ])
+        ),
+        getItemRarityTags: vi.fn().mockResolvedValue(new Map()),
+        getBuildingNicknames: vi
+          .fn()
+          .mockResolvedValue(
+            new Map([
+              ["10", "A"],
+              ["11", "B"],
+            ])
+          ),
+        getClaimNameForBuilding: vi.fn().mockResolvedValue(undefined),
+      },
+      questOffers: {
+        snapshotForMonitoredBuildings: vi.fn().mockReturnValue([a, b]),
+      },
+    };
+    const r = await executeQuestBoardList("g1", "c1", deps, 0, "InGoT");
+    expect(r.kind).toBe("list");
+    if (r.kind === "list") {
+      expect(r.shops).toHaveLength(1);
+      expect(r.shops[0]?.shopEntityIdStr).toBe("10");
+      expect(r.requireQuery).toBe("ingot");
+      expect(r.content).toContain("search: **ingot**");
+      expect(r.content).toContain("Query: **ingot**");
+    }
+  });
+
+  it("treats whitespace-only requireQuery as no search filter", async () => {
+    const a = baseOffer({ questKey: "10:1", shopEntityIdStr: "10" });
+    const b = baseOffer({ questKey: "11:1", shopEntityIdStr: "11" });
+    const deps: QuestBoardDeps = {
+      repo: {
+        listBuildings: vi
+          .fn()
+          .mockResolvedValue([{ buildingId: "10" }, { buildingId: "11" }]),
+      },
+      entityCacheRepo: {
+        getInventoryBoardSnapshotForOwners: vi
+          .fn()
+          .mockResolvedValue(new Map()),
+        getItemNames: vi.fn().mockResolvedValue(new Map()),
+        getItemRarityTags: vi.fn().mockResolvedValue(new Map()),
+        getBuildingNicknames: vi
+          .fn()
+          .mockResolvedValue(
+            new Map([
+              ["10", "A"],
+              ["11", "B"],
+            ])
+          ),
+        getClaimNameForBuilding: vi.fn().mockResolvedValue(undefined),
+      },
+      questOffers: {
+        snapshotForMonitoredBuildings: vi.fn().mockReturnValue([a, b]),
+      },
+    };
+    const r = await executeQuestBoardList("g1", "c1", deps, 0, "  \t");
+    expect(r.kind).toBe("list");
+    if (r.kind === "list") {
+      expect(r.shops).toHaveLength(2);
+      expect(r.requireQuery).toBeNull();
+    }
+  });
+
+  it("returns no-match message when the query matches no required item names", async () => {
+    const a = baseOffer({
+      questKey: "10:1",
+      requiredStacks: [{ itemId: 5, quantity: 1 }],
+      offerStacks: [{ itemId: 1, quantity: 1 }],
+    });
+    const deps: QuestBoardDeps = {
+      repo: {
+        listBuildings: vi.fn().mockResolvedValue([{ buildingId: "10" }]),
+      },
+      entityCacheRepo: {
+        getInventoryBoardSnapshotForOwners: vi
+          .fn()
+          .mockResolvedValue(new Map()),
+        getItemNames: vi
+          .fn()
+          .mockResolvedValue(
+            new Map<number, string | undefined>([[5, "OnlyWood"]])
+          ),
+        getItemRarityTags: vi.fn().mockResolvedValue(new Map()),
+        getBuildingNicknames: vi.fn().mockResolvedValue(new Map()),
+        getClaimNameForBuilding: vi.fn().mockResolvedValue(undefined),
+      },
+      questOffers: {
+        snapshotForMonitoredBuildings: vi.fn().mockReturnValue([a]),
+      },
+    };
+    const r = await executeQuestBoardList("g1", "c1", deps, 0, "ingot");
+    expect(r.kind).toBe("no_offers");
+    if (r.kind === "no_offers") {
+      expect(r.content).toContain("ingot");
+      expect(r.content).toContain("No offers require items matching");
     }
   });
 });
@@ -156,6 +285,56 @@ describe("executeQuestBoardShopDetail", () => {
       expect(r.content).toContain("Iron ×1");
       expect(r.content).toContain("**Stock:** 3");
       expect(r.totalOfferPages).toBe(1);
+      expect(r.offerCount).toBe(1);
+    }
+  });
+
+  it("with requireQuery, only lists offers whose required item names match", async () => {
+    const needIron = baseOffer({
+      questKey: "10:1",
+      offerStacks: [{ itemId: 1, quantity: 1 }],
+      requiredStacks: [{ itemId: 2, quantity: 1 }],
+    });
+    const needGold = baseOffer({
+      questKey: "10:2",
+      offerStacks: [{ itemId: 1, quantity: 1 }],
+      requiredStacks: [{ itemId: 3, quantity: 1 }],
+    });
+    const deps: QuestBoardDeps = {
+      repo: {
+        listBuildings: vi.fn().mockResolvedValue([{ buildingId: "10" }]),
+      },
+      entityCacheRepo: {
+        getInventoryBoardSnapshotForOwners: vi
+          .fn()
+          .mockResolvedValue(new Map()),
+        getItemNames: vi
+          .fn()
+          .mockResolvedValue(
+            new Map<number, string | undefined>([
+              [1, "A"],
+              [2, "Iron Bar"],
+              [3, "Gold Coin"],
+            ])
+          ),
+        getItemRarityTags: vi.fn().mockResolvedValue(new Map()),
+        getBuildingNicknames: vi
+          .fn()
+          .mockResolvedValue(new Map([["10", "Stall"]])),
+        getClaimNameForBuilding: vi.fn().mockResolvedValue("C"),
+      },
+      questOffers: {
+        snapshotForMonitoredBuildings: vi
+          .fn()
+          .mockReturnValue([needIron, needGold]),
+      },
+    };
+    const r = await executeQuestBoardShopDetail("g1", "c1", "10", deps, 0, "GOLD");
+    expect(r.kind).toBe("ok");
+    if (r.kind === "ok") {
+      expect(r.content).toContain("search: **gold**");
+      expect(r.content).toContain("Gold Coin");
+      expect(r.content).not.toContain("Iron Bar");
       expect(r.offerCount).toBe(1);
     }
   });

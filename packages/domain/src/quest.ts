@@ -65,6 +65,25 @@ export function sortQuestOffersForBoard(
 }
 
 /**
+ * True if any **required** turn-in item’s display name contains `queryLower`
+ * (substring, already lowercased by the caller). Uses `requiredStacks` only; no stacks ⇒ false.
+ */
+export function offerRequiresNameContains(
+  offer: QuestOfferSnapshot,
+  itemNames: ReadonlyMap<number, string | undefined>,
+  queryLower: string
+): boolean {
+  const stacks = offer.requiredStacks;
+  if (!stacks || stacks.length === 0) return false;
+  for (const s of stacks) {
+    const n = itemNames.get(s.itemId);
+    const label = n?.trim() ? n.trim() : String(s.itemId);
+    if (label.toLowerCase().includes(queryLower)) return true;
+  }
+  return false;
+}
+
+/**
  * Leaderboard line for a completion subject (`d:<discordUserId>` or `s:<hex>`).
  */
 export function formatCompletionSubjectDisplay(subjectKey: string): string {

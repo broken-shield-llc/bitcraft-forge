@@ -3,6 +3,7 @@ import {
   formatOfferStacksHighlightingLegendaryPlus,
   isLegendaryPlusRarityTag,
   isQuestOfferVisibleOnBoard,
+  offerRequiresNameContains,
   questBoardLegendaryPlusRowBadge,
   sortQuestOffersForBoard,
   type QuestOfferReadPort,
@@ -26,6 +27,18 @@ function emptyWithBuildings(commandName: string): string {
     "",
     "The board only lists orders whose **shop** id matches a **monitored building id** (same BitCraft entity id). If you picked the wrong building, or there are no active trade orders for those stalls, the list stays empty.",
     `If the bot just connected, wait a few seconds and try again. \`/${commandName} health\` shows whether \`trade_order_state\` is syncing (row count).`,
+  ].join("\n");
+}
+
+function noSearchMatchMessage(query: string, commandName: string): string {
+  const q = query.trim().toLowerCase();
+  return [
+    "**Quest board**",
+    "",
+    `No offers require items matching **${q}** among visible stalls.`,
+    "",
+    "Try a shorter substring, check spelling, or use",
+    `\`/${commandName} quest board\` to see all offers.`,
   ].join("\n");
 }
 
@@ -53,15 +66,26 @@ type PreparedOk = {
   totalOffers: number;
 };
 
+function normalizeRequireQuery(
+  requireQuery: string | null | undefined
+): { queryLower: string | null; displayQuery: string } {
+  const raw = requireQuery?.trim() ?? "";
+  if (raw.length === 0) return { queryLower: null, displayQuery: "" };
+  return { queryLower: raw.toLowerCase(), displayQuery: raw };
+}
+
 async function prepareQuestBoard(
   discordGuildId: string,
   forgeChannelId: string,
-  deps: QuestBoardDeps
+  deps: QuestBoardDeps,
+  requireQuery: string | null | undefined = null
 ): Promise<
   | { kind: "no_buildings" }
   | { kind: "no_offers" }
+  | { kind: "no_search_match"; query: string }
   | ({ kind: "ok" } & PreparedOk)
 > {
+  const { queryLower } = normalizeRequireQuery(requireQuery);
   const buildings = await deps.repo.listBuildings(
     discordGuildId,
     forgeChannelId
@@ -79,10 +103,25 @@ async function prepareQuestBoard(
     hasInventoryDataForOwner: (id) => invSnap.get(id)?.hasData ?? false,
     getTotalsForOwner: (id) => invSnap.get(id)?.totals ?? new Map(),
   };
-  const offers = sorted.filter((o) =>
+  let offers = sorted.filter((o) =>
     isQuestOfferVisibleOnBoard(o, boardPort)
   );
   if (offers.length === 0) return { kind: "no_offers" };
+
+  const itemIds = new Set<number>();
+  for (const o of offers) {
+    for (const s of o.offerStacks ?? []) itemIds.add(s.itemId);
+    for (const s of o.requiredStacks ?? []) itemIds.add(s.itemId);
+  }
+  const itemNames = await deps.entityCacheRepo.getItemNames([...itemIds]);
+  if (queryLower) {
+    offers = offers.filter((o) =>
+      offerRequiresNameContains(o, itemNames, queryLower)
+    );
+    if (offers.length === 0) {
+      return { kind: "no_search_match", query: queryLower };
+    }
+  }
 
   const shopOrder: string[] = [];
   const byShop = new Map<string, QuestOfferSnapshot[]>();
@@ -94,12 +133,6 @@ async function prepareQuestBoard(
     byShop.get(o.shopEntityIdStr)!.push(o);
   }
 
-  const itemIds = new Set<number>();
-  for (const o of offers) {
-    for (const s of o.offerStacks ?? []) itemIds.add(s.itemId);
-    for (const s of o.requiredStacks ?? []) itemIds.add(s.itemId);
-  }
-  const itemNames = await deps.entityCacheRepo.getItemNames([...itemIds]);
   const offerItemIds = new Set<number>();
   for (const o of offers) {
     for (const s of o.offerStacks ?? []) offerItemIds.add(s.itemId);
@@ -145,22 +178,38 @@ export type QuestBoardListResult =
       pageSize: number;
       totalPages: number;
       shops: QuestBoardListShopRow[];
+      /** Set when a search query was applied (for display context). */
+      requireQuery: string | null;
     };
 
 export async function executeQuestBoardList(
   discordGuildId: string,
   forgeChannelId: string,
   deps: QuestBoardDeps,
-  page: number
+  page: number,
+  requireQuery: string | null | undefined = null
 ): Promise<QuestBoardListResult> {
   const cmd = deps.discordCommandName ?? "forge";
-  const p = await prepareQuestBoard(discordGuildId, forgeChannelId, deps);
+  const p = await prepareQuestBoard(
+    discordGuildId,
+    forgeChannelId,
+    deps,
+    requireQuery
+  );
   if (p.kind === "no_buildings") {
     return { kind: "no_buildings", content: emptyNoBuildings(cmd) };
   }
   if (p.kind === "no_offers") {
     return { kind: "no_offers", content: emptyWithBuildings(cmd) };
   }
+  if (p.kind === "no_search_match") {
+    return {
+      kind: "no_offers",
+      content: noSearchMatchMessage(p.query, cmd),
+    };
+  }
+
+  const { queryLower: activeQuery } = normalizeRequireQuery(requireQuery);
 
   const { shopOrder, byShop, shopNicks, totalOffers } = p;
   const validOrder = shopOrder.filter(
@@ -206,14 +255,20 @@ export async function executeQuestBoardList(
       ? `\n_Note: ${skippedLongIds} shop(s) have building ids too long for Discord menus and are omitted._`
       : "";
 
-  const content = [
-    "**Quest board**",
-    "",
+  const titleLine = activeQuery
+    ? `**Quest board** — search: **${activeQuery}**`
+    : "**Quest board**";
+  const head: string[] = [titleLine, ""];
+  if (activeQuery) {
+    head.push(`Query: **${activeQuery}**`, "");
+  }
+  head.push(
     `${totalOffers} offer${totalOffers === 1 ? "" : "s"} across **${shopOrder.length}** shop${shopOrder.length === 1 ? "" : "s"}.`,
     pageLine,
     skipNote,
-    "",
-  ].join("\n");
+    ""
+  );
+  const content = head.join("\n");
 
   return {
     kind: "list",
@@ -224,6 +279,7 @@ export async function executeQuestBoardList(
     pageSize,
     totalPages,
     shops,
+    requireQuery: activeQuery,
   };
 }
 
@@ -274,15 +330,22 @@ function offerBlockText(
 function buildShopBaseHeader(
   claimDisplay: string,
   buildingName: string,
-  offerCount: number
+  offerCount: number,
+  searchDisplay: string | null = null
 ): string {
   const w = offerCount === 1 ? "offer" : "offers";
-  return [
-    "**Quest board**",
-    "",
+  const titleLine = searchDisplay
+    ? `**Quest board** — search: **${searchDisplay}**`
+    : "**Quest board**";
+  const parts: string[] = [titleLine, ""];
+  if (searchDisplay) {
+    parts.push(`Query: **${searchDisplay}**`, "");
+  }
+  parts.push(
     `**${claimDisplay} - ${buildingName}** (${offerCount} ${w})`,
-    "",
-  ].join("\n");
+    ""
+  );
+  return parts.join("\n");
 }
 
 function buildShopPageHeader(
@@ -374,15 +437,27 @@ export async function executeQuestBoardShopDetail(
   forgeChannelId: string,
   shopEntityIdStr: string,
   deps: QuestBoardDeps,
-  offerPage: number = 0
+  offerPage: number = 0,
+  requireQuery: string | null | undefined = null
 ): Promise<QuestBoardShopDetailResult> {
   const cmd = deps.discordCommandName ?? "forge";
-  const p = await prepareQuestBoard(discordGuildId, forgeChannelId, deps);
+  const p = await prepareQuestBoard(
+    discordGuildId,
+    forgeChannelId,
+    deps,
+    requireQuery
+  );
   if (p.kind === "no_buildings") {
     return { kind: "not_found", content: emptyNoBuildings(cmd) };
   }
   if (p.kind === "no_offers") {
     return { kind: "not_found", content: emptyWithBuildings(cmd) };
+  }
+  if (p.kind === "no_search_match") {
+    return {
+      kind: "not_found",
+      content: noSearchMatchMessage(p.query, cmd),
+    };
   }
 
   const shopOffers = p.byShop.get(shopEntityIdStr);
@@ -405,10 +480,13 @@ export async function executeQuestBoardShopDetail(
     void 0;
   }
   const claimDisplay = claimName?.trim() || "—";
+  const { displayQuery, queryLower: queryLowerForSearch } =
+    normalizeRequireQuery(requireQuery);
   const baseHeader = buildShopBaseHeader(
     claimDisplay,
     buildingName,
-    shopOffers.length
+    shopOffers.length,
+    displayQuery.length > 0 ? queryLowerForSearch : null
   );
   const pages = splitShopOffersIntoPages(
     shopOffers,

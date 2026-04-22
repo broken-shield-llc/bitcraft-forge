@@ -79,7 +79,10 @@ export function isForgeQuestBoardComponent(customId: string): boolean {
 }
 
 export function stripQuestBoardTitleLine(text: string): string {
-  return text.replace(/^\*\*Quest board\*\*\s*\n?/u, "");
+  // Entire first line: **Quest board** (optionally ` — search: **…**`); then one optional extra newline.
+  return text
+    .replace(/^\*\*Quest board\*\*[^\n]*\r?\n/u, "")
+    .replace(/^\n/u, "");
 }
 
 export type QuestBoardEmbedsResult = {

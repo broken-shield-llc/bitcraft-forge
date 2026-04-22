@@ -34,6 +34,22 @@ export function buildForgeSlashCommand(commandName: string) {
         )
         .addSubcommand((s) =>
           s
+            .setName("search")
+            .setDescription(
+              "Quest board filtered to offers that require an item whose name contains your query"
+            )
+            .addStringOption((o) =>
+              o
+                .setName("query")
+                .setDescription(
+                  "Match required turn-in item names (case-insensitive substring)"
+                )
+                .setRequired(true)
+                .setMaxLength(100)
+            )
+        )
+        .addSubcommand((s) =>
+          s
             .setName("leaderboard")
             .setDescription("Quest leaderboard for this channel's scope")
         )

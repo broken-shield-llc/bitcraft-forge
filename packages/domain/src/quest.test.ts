@@ -9,6 +9,7 @@ import {
   isLegendaryPlusRarityTag,
   questBoardLegendaryPlusRowBadge,
   rewardRatingLabel,
+  offerRequiresNameContains,
   sortQuestOffersForBoard,
 } from "./quest.js";
 
@@ -110,6 +111,35 @@ describe("formatCompletionSubjectDisplay", () => {
 
   it("formats stdb identity subjects", () => {
     expect(formatCompletionSubjectDisplay("s:abcdef0123456789")).toContain("STDB");
+  });
+});
+
+describe("offerRequiresNameContains", () => {
+  const base: Parameters<typeof offerRequiresNameContains>[0] = {
+    questKey: "1:1",
+    shopEntityIdStr: "1",
+    orderEntityIdStr: "1",
+    remainingStock: 1,
+    offerSummary: "",
+    requiredSummary: "x",
+    travelerTradeOrderId: null,
+  };
+  const names = new Map<number, string | undefined>([[2, "Iron Ingot"]]);
+
+  it("is true when any required name includes query (queryLower; names matched case-insensitively)", () => {
+    expect(offerRequiresNameContains({ ...base, requiredStacks: [{ itemId: 2, quantity: 1 }] }, names, "ingot")).toBe(
+      true
+    );
+    expect(offerRequiresNameContains({ ...base, requiredStacks: [{ itemId: 2, quantity: 1 }] }, names, "iron")).toBe(
+      true
+    );
+  });
+
+  it("is false with no required stacks or no match", () => {
+    expect(offerRequiresNameContains({ ...base, requiredStacks: [] }, names, "ingot")).toBe(false);
+    expect(offerRequiresNameContains({ ...base, requiredStacks: [{ itemId: 2, quantity: 1 }] }, names, "gold")).toBe(
+      false
+    );
   });
 });
 
