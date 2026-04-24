@@ -58,15 +58,25 @@ describe("executeQuestLeaderboard", () => {
     const { content } = await executeQuestLeaderboard("g1", "c1", deps);
     expect(content).toContain("**Quest Leaderboard**");
     expect(content).toContain("No quest completions yet");
-    expect(deps.repo.questLeaderboard).toHaveBeenCalledWith("g1", "c1", 10);
+    expect(deps.repo.questLeaderboard).toHaveBeenCalledWith("g1", "c1", null);
   });
 
   it("formats rows with Discord mention for d: subjects", async () => {
     const deps = {
       repo: {
         questLeaderboard: vi.fn().mockResolvedValue([
-          { subjectKey: "d:123456789", points: 5 },
-          { subjectKey: "s:deadbeef", points: 2 },
+          {
+            subjectKey: "d:123456789",
+            points: 5,
+            subjectDisplayName: null,
+            subjectTravelerEntityId: null,
+          },
+          {
+            subjectKey: "s:deadbeef",
+            points: 2,
+            subjectDisplayName: null,
+            subjectTravelerEntityId: null,
+          },
         ]),
       },
       entityCacheRepo,
@@ -86,7 +96,12 @@ describe("executeQuestLeaderboard", () => {
     const deps = {
       repo: {
         questLeaderboard: vi.fn().mockResolvedValue([
-          { subjectKey: "s:abc", points: 1 },
+          {
+            subjectKey: "s:abc",
+            points: 1,
+            subjectDisplayName: null,
+            subjectTravelerEntityId: null,
+          },
         ]),
       },
       entityCacheRepo: {
@@ -94,10 +109,54 @@ describe("executeQuestLeaderboard", () => {
       },
     };
     const { content } = await executeQuestLeaderboard("g1", "c1", deps);
+    expect(deps.repo.questLeaderboard).toHaveBeenCalledWith("g1", "c1", null);
     expect(content).toContain("1. TraderJo — **1** points");
   });
 
-  it("respects custom limit", async () => {
+  it("shows plain Traveler when no stored name and no live cache name", async () => {
+    const longHex = "a".repeat(16) + "b".repeat(16);
+    const deps = {
+      repo: {
+        questLeaderboard: vi.fn().mockResolvedValue([
+          {
+            subjectKey: `s:${longHex}`,
+            points: 3,
+            subjectDisplayName: null,
+            subjectTravelerEntityId: null,
+          },
+        ]),
+      },
+      entityCacheRepo: {
+        getTravelerUsernameForIdentity: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+    const { content } = await executeQuestLeaderboard("g1", "c1", deps);
+    expect(content).toContain("1. Traveler — **3** points");
+  });
+
+  it("prefers subject_display_name from quest rows over live cache for s: subjects", async () => {
+    const deps = {
+      repo: {
+        questLeaderboard: vi.fn().mockResolvedValue([
+          {
+            subjectKey: "s:abc",
+            points: 1,
+            subjectDisplayName: "SavedAtCompletion",
+            subjectTravelerEntityId: null,
+          },
+        ]),
+      },
+      entityCacheRepo: {
+        getTravelerUsernameForIdentity: vi
+          .fn()
+          .mockResolvedValue("DifferentFromCache"),
+      },
+    };
+    const { content } = await executeQuestLeaderboard("g1", "c1", deps);
+    expect(content).toContain("1. SavedAtCompletion — **1** points");
+  });
+
+  it("respects custom limit when passed explicitly", async () => {
     const deps = {
       repo: {
         questLeaderboard: vi.fn().mockResolvedValue([]),

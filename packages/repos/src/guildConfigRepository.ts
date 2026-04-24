@@ -17,6 +17,15 @@ export type QuestLeaderboardRow = {
   subjectKey: string;
   /** Sum of `leaderboard_points` for this subject in the scope. */
   points: number;
+  /**
+   * Name from the latest quest completion row for this subject (captured at completion time);
+   * prefer over live cache for `s:` when set.
+   */
+  subjectDisplayName: string | null;
+  /**
+   * Traveler entity id from the latest relevant completion row (captured at completion time).
+   */
+  subjectTravelerEntityId: string | null;
 };
 
 export type RecordQuestCompletionInput = {
@@ -28,6 +37,10 @@ export type RecordQuestCompletionInput = {
   offerStacks: ItemStackLike[];
   requireStacks: ItemStackLike[];
   leaderboardPoints: number;
+  /** In-game (or other) name from the same resolution as the completion message; optional. */
+  subjectDisplayName?: string | null;
+  /** BitCraft traveler entity id from `user_state` at completion; optional. */
+  subjectTravelerEntityId?: string | null;
 };
 
 export type QuestScoringConfigView = {
@@ -164,10 +177,13 @@ export interface GuildConfigRepository {
     getTiers: (itemIds: number[]) => Promise<Map<number, number | null>>
   ): Promise<number>;
 
+  /**
+   * @param limit Max rows, or `null` for all subjects that have at least one completion (ordered by total points).
+   */
   questLeaderboard(
     discordGuildId: string,
     forgeChannelId: string,
-    limit: number
+    limit: number | null
   ): Promise<QuestLeaderboardRow[]>;
   /** Deletes all quest completion rows for this guild + forge channel scope. */
   clearQuestCompletionsForScope(

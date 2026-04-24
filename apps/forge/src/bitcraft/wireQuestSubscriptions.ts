@@ -282,7 +282,8 @@ export function wireQuestSubscriptions(
     scopeSk: string,
     shopId: string,
     request: PlayerBarterStallOrderAccept,
-    callerHex: string
+    callerHex: string,
+    preResolvedTraderName: string | null = null
   ): Promise<void> => {
     if (!canAnnounceLive()) return;
     const { discordGuildId, forgeChannelId } = parseScopeKey(scopeSk);
@@ -351,19 +352,24 @@ export function wireQuestSubscriptions(
     } catch (e: unknown) {
       log.warn("item name lookup for completion announce failed", e);
     }
+    const pre = preResolvedTraderName?.trim();
     let traderDisplay: string;
-    try {
-      const name = await entityCacheRepo.getTravelerUsernameForIdentity(
-        callerHex
-      );
-      const trimmed = name?.trim();
-      traderDisplay =
-        trimmed && trimmed.length > 0
-          ? trimmed
-          : formatCompletionSubjectDisplay(`s:${callerHex}`);
-    } catch (e: unknown) {
-      log.warn("traveler username lookup for completion announce failed", e);
-      traderDisplay = formatCompletionSubjectDisplay(`s:${callerHex}`);
+    if (pre) {
+      traderDisplay = pre;
+    } else {
+      try {
+        const name = await entityCacheRepo.getTravelerUsernameForIdentity(
+          callerHex
+        );
+        const trimmed = name?.trim();
+        traderDisplay =
+          trimmed && trimmed.length > 0
+            ? trimmed
+            : formatCompletionSubjectDisplay(`s:${callerHex}`);
+      } catch (e: unknown) {
+        log.warn("traveler username lookup for completion announce failed", e);
+        traderDisplay = formatCompletionSubjectDisplay(`s:${callerHex}`);
+      }
     }
     const orderId = request.tradeOrderEntityId.toString();
     try {
@@ -587,7 +593,7 @@ export function wireQuestSubscriptions(
     })
     .subscribe("SELECT * FROM traveler_trade_order_desc");
 
-  connection.reducers.onBarterStallOrderAccept((ctx, request) => {
+  connection.reducers.onBarterStallOrderAccept(async (ctx, request) => {
     if (ctx.event.status.tag !== "Committed") return;
     const shopId = request.shopEntityId.toString();
     const questEntityId = request.tradeOrderEntityId.toString();
@@ -608,10 +614,31 @@ export function wireQuestSubscriptions(
       pruneExpiredSuppressEntries(Date.now());
     }
 
-    const subjectKey = `s:${callerHex}`;
+    const subjectKey = `s:${callerHex.trim().toLowerCase()}`;
+
+    let resolvedTraderName: string | null = null;
+    let resolvedTravelerEntityId: string | null = null;
+    try {
+      const [nm, eid] = await Promise.all([
+        entityCacheRepo.getTravelerUsernameForIdentity(callerHex.trim()),
+        entityCacheRepo.getTravelerEntityIdForIdentity(callerHex.trim()),
+      ]);
+      const t = nm?.trim();
+      if (t) resolvedTraderName = t;
+      const e = eid?.trim();
+      if (e) resolvedTravelerEntityId = e;
+    } catch {
+      void 0;
+    }
 
     for (const sk of scopes) {
-      void announceQuestCompletion(sk, shopId, request, callerHex);
+      void announceQuestCompletion(
+        sk,
+        shopId,
+        request,
+        callerHex,
+        resolvedTraderName
+      );
       const { discordGuildId, forgeChannelId } = parseScopeKey(sk);
       void (async () => {
         try {
@@ -649,6 +676,8 @@ export function wireQuestSubscriptions(
             offerStacks,
             requireStacks,
             leaderboardPoints,
+            subjectDisplayName: resolvedTraderName,
+            subjectTravelerEntityId: resolvedTravelerEntityId,
           });
           log.debug(
             "recorded barter completion",

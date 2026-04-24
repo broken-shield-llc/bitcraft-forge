@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sum } from "drizzle-orm";
+import { and, asc, desc, eq, sql, sum } from "drizzle-orm";
 import {
   computeLeaderboardPoints,
   DEFAULT_QUEST_SCORING_WEIGHTS,
@@ -383,7 +383,17 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
       offerStacks,
       requireStacks,
       leaderboardPoints,
+      subjectDisplayName,
+      subjectTravelerEntityId,
     } = input;
+    const subjName =
+      typeof subjectDisplayName === "string"
+        ? subjectDisplayName.trim() || null
+        : (subjectDisplayName ?? null);
+    const subjTid =
+      typeof subjectTravelerEntityId === "string"
+        ? subjectTravelerEntityId.trim() || null
+        : (subjectTravelerEntityId ?? null);
     await this.ensureGuild(discordGuildId);
     await this.db.insert(schema.questCompletions).values({
       discordGuildId,
@@ -394,6 +404,8 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
       offerStacks,
       requireStacks,
       leaderboardPoints,
+      subjectDisplayName: subjName,
+      subjectTravelerEntityId: subjTid,
     });
     return "ok";
   }
@@ -544,27 +556,43 @@ export class DrizzleGuildConfigRepository implements GuildConfigRepository {
   async questLeaderboard(
     discordGuildId: string,
     forgeChannelId: string,
-    limit: number
+    limit: number | null
   ): Promise<QuestLeaderboardRow[]> {
-    const pointsSum = sum(schema.questCompletions.leaderboardPoints);
-    const rows = await this.db
+    const qc = schema.questCompletions;
+    const pointsSum = sum(qc.leaderboardPoints);
+    const subjectDisplayName = sql<string | null>`
+      (array_agg(${qc.subjectDisplayName} ORDER BY ${qc.id} DESC) FILTER (WHERE
+        ${qc.subjectDisplayName} IS NOT NULL
+        AND btrim(${qc.subjectDisplayName}::text) <> ''))[1]
+    `.as("subjectDisplayName");
+    const subjectTravelerEntityId = sql<string | null>`
+      (array_agg(${qc.subjectTravelerEntityId} ORDER BY ${qc.id} DESC) FILTER (WHERE
+        ${qc.subjectTravelerEntityId} IS NOT NULL
+        AND btrim(${qc.subjectTravelerEntityId}::text) <> ''))[1]
+    `.as("subjectTravelerEntityId");
+    const q = this.db
       .select({
-        subjectKey: schema.questCompletions.subjectKey,
+        subjectKey: qc.subjectKey,
         pointsSum,
+        subjectDisplayName,
+        subjectTravelerEntityId,
       })
-      .from(schema.questCompletions)
+      .from(qc)
       .where(
         and(
-          eq(schema.questCompletions.discordGuildId, discordGuildId),
-          eq(schema.questCompletions.forgeChannelId, forgeChannelId)
+          eq(qc.discordGuildId, discordGuildId),
+          eq(qc.forgeChannelId, forgeChannelId)
         )
       )
-      .groupBy(schema.questCompletions.subjectKey)
-      .orderBy(desc(pointsSum))
-      .limit(limit);
+      .groupBy(qc.subjectKey)
+      .orderBy(desc(pointsSum));
+    const rows =
+      limit == null ? await q : await q.limit(limit);
     return rows.map((r) => ({
       subjectKey: r.subjectKey,
       points: Number(r.pointsSum ?? 0),
+      subjectDisplayName: r.subjectDisplayName ?? null,
+      subjectTravelerEntityId: r.subjectTravelerEntityId ?? null,
     }));
   }
 

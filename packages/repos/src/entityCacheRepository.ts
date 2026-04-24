@@ -103,5 +103,13 @@ export interface EntityCacheRepository {
     identityHex: string
   ): Promise<string | undefined>;
 
+  /**
+   * BitCraft traveler entity id from cached `user_state` (SpacetimeDB identity → entity).
+   * Shorter and game-facing than the raw `s:<identityHex>` from barter events.
+   */
+  getTravelerEntityIdForIdentity(
+    identityHex: string
+  ): Promise<string | undefined>;
+
   getEntityCacheTableCounts(): Promise<EntityCacheTableCounts>;
 }

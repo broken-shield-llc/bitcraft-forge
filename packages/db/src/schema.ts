@@ -118,6 +118,13 @@ export const questCompletions = pgTable(
     forgeChannelId: text("forge_channel_id").notNull(),
     /** `d:<discordUserId>` for manual logs; `s:<identityHex>` from STDB barter accept. */
     subjectKey: text("subject_key").notNull(),
+    /** In-game (or other) name captured at completion; leaderboard uses when live name cache is empty. */
+    subjectDisplayName: text("subject_display_name"),
+    /**
+     * BitCraft traveler `entityId` from cached `user_state` at completion time;
+     * used for shorter leaderboard display when the live `user_state` row is missing later.
+     */
+    subjectTravelerEntityId: text("subject_traveler_entity_id"),
     buildingId: text("building_id").notNull(),
     questEntityId: text("quest_entity_id").notNull(),
     offerStacks: jsonb("offer_stacks")

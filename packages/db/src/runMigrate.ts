@@ -74,6 +74,31 @@ async function ensureQuestScoringModeDefaultLabel(
   );
 }
 
+/** Denormalized display name on quest_completions (0003 / snapshot at completion time). */
+async function ensureQuestSubjectDisplayNameColumn(
+  pool: Pool,
+  log: Logger
+): Promise<void> {
+  await pool.query(
+    `ALTER TABLE "quest_completions" ADD COLUMN IF NOT EXISTS "subject_display_name" text`
+  );
+  log.info(
+    "Quest subject display name column repair done (IF NOT EXISTS; safe if 0003 already applied)"
+  );
+}
+
+async function ensureQuestSubjectTravelerEntityIdColumn(
+  pool: Pool,
+  log: Logger
+): Promise<void> {
+  await pool.query(
+    `ALTER TABLE "quest_completions" ADD COLUMN IF NOT EXISTS "subject_traveler_entity_id" text`
+  );
+  log.info(
+    "Quest subject traveler entity id column repair done (IF NOT EXISTS; safe if 0004 already applied)"
+  );
+}
+
 export type RunMigrationsOptions = {
   /** Logged as `host/dbname` so you can confirm migrate matches the DB you inspect. */
   databaseUrlHint?: string;
@@ -107,5 +132,7 @@ export async function runMigrations(
   await ensureForgeQuestAnnouncementColumns(pool, log);
   await ensureQuestScoringColumns(pool, log);
   await ensureQuestScoringModeDefaultLabel(pool, log);
+  await ensureQuestSubjectDisplayNameColumn(pool, log);
+  await ensureQuestSubjectTravelerEntityIdColumn(pool, log);
   log.info("Database schema ready for Forge");
 }
