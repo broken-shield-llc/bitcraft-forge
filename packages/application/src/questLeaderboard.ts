@@ -21,20 +21,37 @@ async function resolveStdbIdentityDisplayNames(
   >,
   subjectKeys: string[]
 ): Promise<Map<string, string>> {
-  const hexes = new Set<string>();
+  /**
+   * Group by case-folded identity hex, then set each *original* `s:…` string from
+   * `quest_completions.subject_key` so `nameBySubject.get(r.subjectKey)` always hits.
+   * (Rebuilding `s:` + trim(hex) from a Set can miss when casing or spacing differs
+   * from the stored row, even if the name lookup by hex succeeds—e.g. same moment
+   * as a completion message that used the same lookup.)
+   */
+  const byNorm = new Map<string, string[]>();
   for (const key of subjectKeys) {
-    if (key.startsWith("s:")) {
-      const hex = key.slice(2).trim();
-      if (hex) hexes.add(hex);
-    }
+    if (!key.startsWith("s:")) continue;
+    const raw = key.slice(2).trim();
+    if (!raw) continue;
+    const n = raw.toLowerCase();
+    const list = byNorm.get(n) ?? [];
+    list.push(key);
+    byNorm.set(n, list);
   }
   const out = new Map<string, string>();
   await Promise.all(
-    [...hexes].map(async (hex) => {
+    [...byNorm.values()].map(async (keys) => {
+      if (keys.length === 0) return;
+      const lookupHex = keys[0]!.slice(2).trim();
       try {
-        const name = await entityCacheRepo.getTravelerUsernameForIdentity(hex);
+        const name = await entityCacheRepo.getTravelerUsernameForIdentity(
+          lookupHex
+        );
         const t = name?.trim();
-        if (t) out.set(`s:${hex}`, t);
+        if (!t) return;
+        for (const k of keys) {
+          out.set(k, t);
+        }
       } catch {
         void 0;
       }
@@ -45,13 +62,18 @@ async function resolveStdbIdentityDisplayNames(
 
 function leaderboardPlayerLine(
   subjectKey: string,
-  nameBySubject: Map<string, string>
+  nameBySubject: Map<string, string>,
+  storedDisplayName?: string | null
 ): string {
-  const named = nameBySubject.get(subjectKey);
-  if (named) return named;
   if (subjectKey.startsWith("d:")) {
     return `<@${subjectKey.slice(2)}>`;
   }
+  const fromRow = storedDisplayName?.trim();
+  if (subjectKey.startsWith("s:") && fromRow) {
+    return fromRow;
+  }
+  const named = nameBySubject.get(subjectKey);
+  if (named) return named;
   if (subjectKey.startsWith("s:")) {
     return "Traveler";
   }
@@ -83,13 +105,21 @@ export async function executeQuestLeaderboardReset(
   };
 }
 
+function resolveQuestLeaderboardRowLimit(
+  options?: { limit?: number | null }
+): number | null {
+  if (options?.limit === null) return null;
+  if (typeof options?.limit === "number") return options.limit;
+  return null;
+}
+
 export async function executeQuestLeaderboard(
   discordGuildId: string,
   forgeChannelId: string,
   deps: QuestLeaderboardDeps,
-  options?: { limit?: number }
+  options?: { limit?: number | null }
 ): Promise<{ content: string }> {
-  const limit = options?.limit ?? 10;
+  const limit = resolveQuestLeaderboardRowLimit(options);
   const rows = await deps.repo.questLeaderboard(
     discordGuildId,
     forgeChannelId,
@@ -106,7 +136,11 @@ export async function executeQuestLeaderboard(
   );
   const lines = rows.map(
     (r, i) =>
-      `${i + 1}. ${leaderboardPlayerLine(r.subjectKey, nameBySubject)} — **${r.points}** points`
+      `${i + 1}. ${leaderboardPlayerLine(
+        r.subjectKey,
+        nameBySubject,
+        r.subjectDisplayName
+      )} — **${r.points}** points`
   );
   return { content: formatLeaderboardReply(lines.join("\n")) };
 }

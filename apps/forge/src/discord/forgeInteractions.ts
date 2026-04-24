@@ -67,11 +67,71 @@ const claimDeps = (ctx: ForgeInteractionContext) => ({
   discordCommandName: ctx.config.discordCommandName,
 });
 
-const LEADERBOARD_DESC_MAX = 4096;
 const LEADERBOARD_EMBED_COLOR = 0x2b2d31;
+const LEADERBOARD_TITLE = "**Quest Leaderboard**";
+const LEADERBOARD_CONT_TITLE = "**Quest Leaderboard** (continued)";
 
 function stripLeaderboardTitleLine(text: string): string {
   return text.replace(/^\*\*Quest Leaderboard\*\*\s*\n?/u, "");
+}
+
+/**
+ * Split a full leaderboard string into multiple Discord messages so each stays within limits.
+ * When `hasBanner` is true, the first block uses the embed description budget (text embed body only).
+ */
+export function splitLeaderboardDiscordMessages(
+  fullContent: string,
+  hasBanner: boolean
+): string[] {
+  const body = fullContent.replace(/^\*\*Quest Leaderboard\*\*\s*\n?/u, "");
+  if (body.length === 0) return [fullContent];
+  const firstBodyMax = hasBanner
+    ? 4000
+    : 2000 - (LEADERBOARD_TITLE.length + 1);
+  const followBodyMax = 2000 - (LEADERBOARD_CONT_TITLE.length + 1);
+  if (body.length <= firstBodyMax) {
+    return [fullContent];
+  }
+  const lines = body.split("\n");
+  const messages: string[] = [];
+  let partLines: string[] = [];
+  let partLen = 0;
+
+  const bodyBudget = () => (messages.length === 0 ? firstBodyMax : followBodyMax);
+
+  const flush = () => {
+    if (partLines.length === 0) return;
+    const t = messages.length === 0 ? LEADERBOARD_TITLE : LEADERBOARD_CONT_TITLE;
+    messages.push(`${t}\n${partLines.join("\n")}`);
+    partLines = [];
+    partLen = 0;
+  };
+
+  for (const line of lines) {
+    const b = bodyBudget();
+    const add = (partLines.length === 0 ? 0 : 1) + line.length;
+    if (partLines.length > 0 && partLen + add > b) {
+      flush();
+    }
+    const b2 = bodyBudget();
+    if (line.length > b2) {
+      if (partLines.length) flush();
+      let rest = line;
+      while (rest.length > 0) {
+        const t = messages.length === 0 ? LEADERBOARD_TITLE : LEADERBOARD_CONT_TITLE;
+        const max = messages.length === 0 ? firstBodyMax : followBodyMax;
+        const chunk = rest.slice(0, max);
+        rest = rest.slice(max);
+        messages.push(`${t}\n${chunk}`);
+      }
+      continue;
+    }
+    if (partLines.length === 0) partLen = line.length;
+    else partLen += 1 + line.length;
+    partLines.push(line);
+  }
+  flush();
+  return messages;
 }
 
 function questLeaderboardEditPayload(
@@ -81,10 +141,7 @@ function questLeaderboardEditPayload(
   const trimmed = bannerUrl?.trim();
   if (!trimmed) return { content: fullContent };
 
-  let body = stripLeaderboardTitleLine(fullContent);
-  if (body.length > LEADERBOARD_DESC_MAX) {
-    body = body.slice(0, Math.max(0, LEADERBOARD_DESC_MAX - 1)) + "…";
-  }
+  const body = stripLeaderboardTitleLine(fullContent);
   const bannerEmbed = new EmbedBuilder()
     .setColor(LEADERBOARD_EMBED_COLOR)
     .setImage(trimmed);
@@ -126,6 +183,21 @@ async function editReplyCatchUnknown(
 ): Promise<void> {
   try {
     await interaction.editReply(options);
+  } catch (e: unknown) {
+    if (isUnknownInteractionError(e)) return;
+    throw e;
+  }
+}
+
+async function followUpCatchUnknown(
+  interaction: ChatInputCommandInteraction,
+  content: string
+): Promise<void> {
+  try {
+    await interaction.followUp({
+      flags: MessageFlags.Ephemeral,
+      content,
+    });
   } catch (e: unknown) {
     if (isUnknownInteractionError(e)) return;
     throw e;
@@ -407,13 +479,20 @@ export async function handleForgeInteraction(
             entityCacheRepo: ctx.entityCacheRepo,
           }
         );
+        const hasBanner = Boolean(
+          ctx.config.questLeaderboardBannerUrl?.trim()
+        );
+        const parts = splitLeaderboardDiscordMessages(content, hasBanner);
         await editReplyCatchUnknown(
           interaction,
           questLeaderboardEditPayload(
-            content,
+            parts[0]!,
             ctx.config.questLeaderboardBannerUrl
           )
         );
+        for (let i = 1; i < parts.length; i++) {
+          await followUpCatchUnknown(interaction, parts[i]!);
+        }
         return;
       }
 

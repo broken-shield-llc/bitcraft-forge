@@ -3,7 +3,7 @@ import {
   inferBuildingKindFromDescName,
   type BuildingKind,
 } from "@forge/domain";
-import { count, eq, inArray } from "drizzle-orm";
+import { count, eq, inArray, or, sql } from "drizzle-orm";
 import type { ForgeDb } from "@forge/db";
 import { schema } from "@forge/db";
 import type {
@@ -505,17 +505,16 @@ export class DrizzleEntityCacheRepository implements EntityCacheRepository {
       );
   }
 
+  async getTravelerEntityIdForIdentity(
+    identityHex: string
+  ): Promise<string | undefined> {
+    return this.findTravelerEntityIdForIdentity(identityHex);
+  }
+
   async getTravelerUsernameForIdentity(
     identityHex: string
   ): Promise<string | undefined> {
-    const uRows = await this.db
-      .select({
-        travelerEntityId: schema.stdbUserStateCache.travelerEntityId,
-      })
-      .from(schema.stdbUserStateCache)
-      .where(eq(schema.stdbUserStateCache.identityHex, identityHex))
-      .limit(1);
-    const tid = uRows[0]?.travelerEntityId;
+    const tid = await this.findTravelerEntityIdForIdentity(identityHex);
     if (!tid) return undefined;
     const pRows = await this.db
       .select({ username: schema.stdbPlayerUsernameCache.username })
@@ -524,6 +523,32 @@ export class DrizzleEntityCacheRepository implements EntityCacheRepository {
       .limit(1);
     const u = pRows[0]?.username?.trim();
     return u || undefined;
+  }
+
+  /**
+   * Resolves the cached traveler entity id for a SpacetimeDB identity.
+   * Matches case-insensitively so `subject_key` text lines up with `user_state` rows
+   * even if hex casing differs.
+   */
+  private async findTravelerEntityIdForIdentity(
+    identityHex: string
+  ): Promise<string | undefined> {
+    const trimmed = identityHex.trim();
+    if (!trimmed) return undefined;
+    const col = schema.stdbUserStateCache.identityHex;
+    const uRows = await this.db
+      .select({
+        travelerEntityId: schema.stdbUserStateCache.travelerEntityId,
+      })
+      .from(schema.stdbUserStateCache)
+      .where(
+        or(
+          eq(col, trimmed),
+          sql`lower(${col}) = ${trimmed.toLowerCase()}`
+        )
+      )
+      .limit(1);
+    return uRows[0]?.travelerEntityId;
   }
 
   async getEntityCacheTableCounts(): Promise<EntityCacheTableCounts> {
