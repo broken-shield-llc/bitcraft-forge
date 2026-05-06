@@ -4,6 +4,7 @@ import type { ChatInputCommandInteraction } from "discord.js";
 import type { ForgeConfig } from "@forge/config";
 import type { Logger } from "@forge/logger";
 import type { EntityCacheRepository, GuildConfigRepository } from "@forge/repos";
+import * as application from "@forge/application";
 import type { QuestOfferCache } from "../bitcraft/index.js";
 import { handleForgeInteraction, type ForgeInteractionContext } from "./forgeInteractions.js";
 
@@ -74,6 +75,51 @@ function baseCtx(
     entityCacheRepo,
     questCache: {} as QuestOfferCache,
   };
+}
+
+function createRewardsCommandInteraction(opts: {
+  manageChannels?: boolean;
+  manageGuild?: boolean;
+}): ChatInputCommandInteraction {
+  const reply = vi.fn().mockResolvedValue(undefined);
+  const editReply = vi.fn().mockResolvedValue(undefined);
+  const followUp = vi.fn().mockResolvedValue(undefined);
+  const fetchReply = vi.fn().mockResolvedValue({ id: "m1" });
+  const channelId = "chan1";
+  const state = { deferred: false, replied: false };
+  const deferReply = vi.fn().mockImplementation(async () => {
+    state.deferred = true;
+  });
+  return {
+    commandName: "forge",
+    channelId,
+    channel: { isTextBased: () => true },
+    inGuild: () => true,
+    guildId: "guild1",
+    memberPermissions: {
+      has: (bit: bigint) =>
+        Boolean(
+          (opts.manageGuild && bit === PermissionFlagsBits.ManageGuild) ||
+            (opts.manageChannels && bit === PermissionFlagsBits.ManageChannels)
+        ),
+    },
+    get deferred() {
+      return state.deferred;
+    },
+    get replied() {
+      return state.replied;
+    },
+    options: {
+      getSubcommandGroup: vi.fn().mockReturnValue("quest"),
+      getSubcommand: vi.fn().mockReturnValue("rewards"),
+      getString: vi.fn(),
+    },
+    reply,
+    deferReply,
+    editReply,
+    followUp,
+    fetchReply,
+  } as unknown as ChatInputCommandInteraction;
 }
 
 describe("handleForgeInteraction /forge health", () => {
@@ -150,5 +196,62 @@ describe("handleForgeInteraction /forge health", () => {
     };
     expect(payload.content).toContain("SpacetimeDB connected: **false**");
     expect(payload.content).toContain("Quest projection ready: **false**");
+  });
+});
+
+describe("handleForgeInteraction quest rewards", () => {
+  it("denies without Manage Server or Manage Channels", async () => {
+    const spy = vi.spyOn(application, "executeQuestRewardsList");
+    const interaction = createRewardsCommandInteraction({});
+    const isForgeChannelEnabled = vi.fn().mockResolvedValue(true);
+    await handleForgeInteraction(interaction, {
+      ...baseCtx({} as unknown as EntityCacheRepository),
+      repo: { isForgeChannelEnabled } as unknown as GuildConfigRepository,
+    });
+
+    expect(isForgeChannelEnabled).toHaveBeenCalled();
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining("Manage Channels"),
+    });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("calls executeQuestRewardsList and attaches picker components", async () => {
+    const spy = vi.spyOn(application, "executeQuestRewardsList").mockResolvedValue({
+      kind: "list",
+      content: "**Stall rewards**\n…",
+      totalShops: 1,
+      totalOffers: 2,
+      page: 0,
+      totalPages: 1,
+      shops: [{ shopEntityIdStr: "42", label: "Nick · 2 open orders", offerCount: 2 }],
+      skippedLongIds: 0,
+    });
+
+    const interaction = createRewardsCommandInteraction({
+      manageChannels: true,
+    });
+    const isForgeChannelEnabled = vi.fn().mockResolvedValue(true);
+    await handleForgeInteraction(interaction, {
+      ...baseCtx({} as unknown as EntityCacheRepository),
+      repo: { isForgeChannelEnabled } as unknown as GuildConfigRepository,
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      "guild1",
+      "chan1",
+      expect.any(Object),
+      0
+    );
+    const editArg = vi.mocked(interaction.editReply).mock.calls[0]?.[0] as {
+      content?: string;
+      components?: unknown;
+    };
+    expect(editArg).toBeTruthy();
+    expect(editArg.components).toBeTruthy();
+    expect(editArg.content === "" || editArg.content).toBeDefined();
+    expect(interaction.fetchReply).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
