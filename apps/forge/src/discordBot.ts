@@ -14,7 +14,15 @@ import {
   handleForgeQuestBoardButton,
   handleForgeQuestBoardSelect,
 } from "./discord/forgeQuestBoardInteractions.js";
+import {
+  handleForgeRewardsButton,
+  handleForgeRewardsSelect,
+} from "./discord/forgeRewardsInteractions.js";
 import { handleForgeInteraction } from "./discord/forgeInteractions.js";
+import {
+  isForgeRewardsButtonComponent,
+  parseForgeRewardsCustomId,
+} from "./discord/rewardsDiscord.js";
 import {
   isForgeQuestBoardComponent,
   parseForgeQuestBoardCustomId,
@@ -114,6 +122,12 @@ export async function startDiscordBot(
     }
 
     if (interaction.isStringSelectMenu()) {
+      const rw = parseForgeRewardsCustomId(interaction.customId);
+      if (rw?.type === "reward_shop_select") {
+        await handleForgeRewardsSelect(interaction, ictx, rw.forgeChannelId);
+        return;
+      }
+
       const p = parseForgeQuestBoardCustomId(interaction.customId);
       if (p?.type === "shop") {
         await handleForgeQuestBoardSelect(interaction, ictx, p.forgeChannelId);
@@ -121,6 +135,19 @@ export async function startDiscordBot(
       return;
     }
     if (interaction.isButton()) {
+      if (isForgeRewardsButtonComponent(interaction.customId)) {
+        const rb = parseForgeRewardsCustomId(interaction.customId);
+        if (
+          rb?.type === "reward_list_page" ||
+          rb?.type === "reward_back" ||
+          rb?.type === "reward_detail_prev" ||
+          rb?.type === "reward_detail_next"
+        ) {
+          await handleForgeRewardsButton(interaction, ictx, rb);
+        }
+        return;
+      }
+
       if (isForgeQuestBoardComponent(interaction.customId)) {
         const p = parseForgeQuestBoardCustomId(interaction.customId);
         if (

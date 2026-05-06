@@ -1,7 +1,12 @@
 import {
   PermissionFlagsBits,
   type ChatInputCommandInteraction,
+  type MessageComponentInteraction,
 } from "discord.js";
+
+type GuildForgePermissionInteraction =
+  | ChatInputCommandInteraction
+  | MessageComponentInteraction;
 
 export function requireManageGuild(
   interaction: ChatInputCommandInteraction
@@ -18,7 +23,7 @@ export function requireManageGuild(
  * server admin) configure watches, announcements target, quest scoring, and leaderboard reset.
  */
 export function requireForgeChannelManage(
-  interaction: ChatInputCommandInteraction
+  interaction: GuildForgePermissionInteraction
 ): boolean {
   if (!interaction.inGuild()) return false;
   const p = interaction.memberPermissions;

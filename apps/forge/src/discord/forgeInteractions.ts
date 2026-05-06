@@ -20,6 +20,7 @@ import {
   executeQuestLeaderboardReset,
   executeQuestScoringSet,
   executeQuestScoringShow,
+  executeQuestRewardsList,
   executeSetQuestAnnouncementTarget,
   forgeChannelNotEnabledMessage,
   type QuestAnnouncementTargetKey,
@@ -46,6 +47,11 @@ import {
   questBoardEditPayload,
 } from "./questBoardDiscord.js";
 import { setQuestBoardListRequireQuery } from "./questBoardRequireState.js";
+import {
+  buildRewardsListComponents,
+  stallRewardsEditPayload,
+} from "./rewardsDiscord.js";
+import { setRewardsListPage } from "./rewardsMessageState.js";
 
 export type ForgeInteractionContext = {
   config: ForgeConfig;
@@ -493,6 +499,47 @@ export async function handleForgeInteraction(
         for (let i = 1; i < parts.length; i++) {
           await followUpCatchUnknown(interaction, parts[i]!);
         }
+        return;
+      }
+
+      if (sub === "rewards") {
+        if (!requireForgeChannelManage(interaction)) {
+          await editReplyCatchUnknown(interaction, {
+            content:
+              "You need **Manage Server** or **Manage Channels** to view Stall reward totals for this channel.",
+          });
+          return;
+        }
+
+        const list = await executeQuestRewardsList(
+          guildId,
+          forgeChannelId,
+          questBoardListDeps(ctx),
+          0
+        );
+
+        if (list.kind === "no_buildings" || list.kind === "no_open_orders") {
+          await editReplyCatchUnknown(
+            interaction,
+            stallRewardsEditPayload(
+              list.content,
+              ctx.config.questBoardBannerUrl,
+              []
+            )
+          );
+          return;
+        }
+
+        await editReplyCatchUnknown(
+          interaction,
+          stallRewardsEditPayload(
+            list.content,
+            ctx.config.questBoardBannerUrl,
+            buildRewardsListComponents(list, forgeChannelId) as InteractionEditReplyOptions["components"]
+          )
+        );
+        const mr = await interaction.fetchReply();
+        setRewardsListPage(mr.id, list.page);
         return;
       }
 

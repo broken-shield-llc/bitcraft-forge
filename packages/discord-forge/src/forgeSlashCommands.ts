@@ -50,6 +50,13 @@ export function buildForgeSlashCommand(commandName: string) {
         )
         .addSubcommand((s) =>
           s
+            .setName("rewards")
+            .setDescription(
+              "Stall reward-stock totals picker (combined or per stall, mods)"
+            )
+        )
+        .addSubcommand((s) =>
+          s
             .setName("leaderboard")
             .setDescription("Quest leaderboard for this channel's scope")
         )

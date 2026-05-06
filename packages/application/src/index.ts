@@ -42,6 +42,20 @@ export {
   type QuestBoardShopDetailResult,
 } from "./questBoard.js";
 export {
+  executeQuestRewardsList,
+  executeQuestRewardsTotalsDetail,
+  QUEST_REWARDS_ALL_STORES_VALUE,
+  QUEST_REWARDS_DETAIL_CONTINUED_TITLE,
+  QUEST_REWARDS_DISCORD_TITLE,
+  QUEST_REWARDS_LEGACY_EPHEMERAL_TITLE,
+  QUEST_REWARDS_SHOPS_PER_PAGE,
+  splitQuestRewardsForDiscord,
+  type QuestRewardsDeps,
+  type QuestRewardsListResult,
+  type QuestRewardsListShopRow,
+  type QuestRewardsTotalsDetailResult,
+} from "./questRewards.js";
+export {
   executeQuestLeaderboard,
   executeQuestLeaderboardReset,
   type QuestLeaderboardDeps,
