@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index b1d6831e8a3d6047acc7c4dd0f0416b9abfc4f13..d5e081b48b8261fd7f8048ba82db205d3b4aa13b 100644
+index b1d6831e8a3d6047acc7c4dd0f0416b9abfc4f13..048e16cee70314c1ac2bf16fd81da8a71d277539 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -2243,11 +2243,11 @@ var TableCache32 = class {
@@ -19,3 +19,30 @@ index b1d6831e8a3d6047acc7c4dd0f0416b9abfc4f13..d5e081b48b8261fd7f8048ba82db205d
      }
      const [oldRow, previousCount] = existingEntry;
      const refCount = Math.max(1, previousCount + refCountDelta);
+@@ -3472,12 +3472,21 @@ var DbConnectionImpl32 = class {
+           unknownTransaction = true;
+         } else {
+           reducerTypeInfo = this.#remoteModule.reducers[reducerInfo.reducerName];
+-          try {
+-            const reader = new BinaryReader(reducerInfo.args);
+-            reducerArgs = reducerTypeInfo.argsType.deserialize(reader);
+-          } catch {
+-            console.debug("Failed to deserialize reducer arguments");
++          if (!reducerTypeInfo) {
++            console.debug(
++              `SpacetimeDB: reducer not in client schema: ${reducerInfo.reducerName}`
++            );
+             unknownTransaction = true;
++          } else {
++            try {
++              const reader = new BinaryReader(reducerInfo.args);
++              reducerArgs = reducerTypeInfo.argsType.deserialize(reader);
++            } catch {
++              console.debug(
++                `SpacetimeDB: failed to deserialize reducer arguments: ${reducerInfo.reducerName}`
++              );
++              unknownTransaction = true;
++            }
+           }
+         }
+         if (unknownTransaction) {
