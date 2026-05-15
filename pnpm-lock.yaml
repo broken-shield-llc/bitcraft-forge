@@ -10,7 +10,7 @@ overrides:
 
 patchedDependencies:
   '@clockworklabs/spacetimedb-sdk@1.3.3':
-    hash: afofemouxq2jp5g246gxsdvioe
+    hash: msvijzdbcndc6owwq7teo4hrxy
     path: patches/@clockworklabs__spacetimedb-sdk@1.3.3.patch
 
 importers:
@@ -31,7 +31,7 @@ importers:
     dependencies:
       '@clockworklabs/spacetimedb-sdk':
         specifier: 1.3.3
-        version: 1.3.3(patch_hash=afofemouxq2jp5g246gxsdvioe)(undici@6.24.1)
+        version: 1.3.3(patch_hash=msvijzdbcndc6owwq7teo4hrxy)(undici@6.24.1)
       '@forge/application':
         specifier: workspace:*
         version: link:../../packages/application
@@ -1387,7 +1387,7 @@ packages:
 
 snapshots:
 
-  '@clockworklabs/spacetimedb-sdk@1.3.3(patch_hash=afofemouxq2jp5g246gxsdvioe)(undici@6.24.1)':
+  '@clockworklabs/spacetimedb-sdk@1.3.3(patch_hash=msvijzdbcndc6owwq7teo4hrxy)(undici@6.24.1)':
     dependencies:
       '@zxing/text-encoding': 0.9.0
       base64-js: 1.5.1

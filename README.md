@@ -45,6 +45,8 @@ These SQL subscriptions keep quest projection and entity metadata in sync:
 
 Committed `barter_stall_order_accept` callbacks are used to log quest completions when the shop entity matches a **monitored building** for that Discord scope.
 
+If bindings drift from the live module, the SpacetimeDB TS SDK may log `SpacetimeDB: failed to deserialize reducer arguments: <reducer_name>` or `reducer not in client schema: <reducer_name>` (see [pnpm patch](patches/@clockworklabs__spacetimedb-sdk@1.3.3.patch)). Table subscriptions still update; only reducer callbacks for that transaction are skipped. Refresh bindings with `FORGE_REFRESH_BINDINGS=1 pnpm install`.
+
 ### PostgreSQL cache
 
 Rows from the entity tables above are upserted into local cache tables (see `packages/db` / migrations) with a TTL controlled by `FORGE_STDB_CACHE_TTL_MS`, so Discord can show item names, building nicknames, and similar without hammering SpacetimeDB.
