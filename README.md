@@ -109,7 +109,7 @@ The quest board and quest search may include buttons or selects; the bot uses th
    pnpm install
    ```
 
-   The `prepare` script clones BitCraft_Bindings into `apps/forge/vendor/` unless you set `FORGE_SKIP_BINDINGS_CLONE=1` (useful for CI or restricted networks).
+   The `prepare` script clones BitCraft_Bindings into `apps/forge/vendor/` unless you set `FORGE_SKIP_BINDINGS_CLONE=1` (useful for CI or restricted networks). Bindings are not updated on later installs; use `FORGE_REFRESH_BINDINGS=1 pnpm install` or delete `apps/forge/vendor/BitCraft_Bindings` to reclone.
 
 2. **Configure environment** — Copy [`.env.example`](.env.example) to `.env` at the repo root or under `apps/forge/`. The process loads the first existing file in that order. Set at least:
 

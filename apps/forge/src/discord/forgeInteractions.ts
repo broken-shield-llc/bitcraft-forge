@@ -6,7 +6,6 @@ import {
 } from "discord.js";
 import {
   buildForgeHealthContent,
-  forgeHealthStdbMarkdownLines,
   executeBuildingAdd,
   executeBuildingList,
   executeBuildingRemove,
