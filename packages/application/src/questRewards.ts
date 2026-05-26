@@ -120,7 +120,7 @@ function paginateRewardsDetailBodies(bodyMarkdown: string): string[] {
     const pageIdx = packs.length;
     const headerGuess =
       (pageIdx === 0 ? TITLE.length : CONT.length) + 2 + PAGE_LINE_EXTRA;
-    let budget = MAX_EMBED_DETAIL_CHARS - headerGuess;
+    const budget = MAX_EMBED_DETAIL_CHARS - headerGuess;
     let chunk = "";
 
     while (i < lines.length) {
