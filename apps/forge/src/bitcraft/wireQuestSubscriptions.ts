@@ -12,6 +12,7 @@ import {
   isQuestAnnouncementChannelType,
 } from "@forge/discord-forge";
 import {
+  barterAcceptCompletionCount,
   computeLeaderboardPoints,
   formatCompletionSubjectDisplay,
   formatItemStacksWithNames,
@@ -631,14 +632,18 @@ export function wireQuestSubscriptions(
       void 0;
     }
 
+    const completionCount = barterAcceptCompletionCount(request.amount);
+
     for (const sk of scopes) {
-      void announceQuestCompletion(
-        sk,
-        shopId,
-        request,
-        callerHex,
-        resolvedTraderName
-      );
+      for (let i = 0; i < completionCount; i++) {
+        void announceQuestCompletion(
+          sk,
+          shopId,
+          request,
+          callerHex,
+          resolvedTraderName
+        );
+      }
       const { discordGuildId, forgeChannelId } = parseScopeKey(sk);
       void (async () => {
         try {
@@ -667,7 +672,7 @@ export function wireQuestSubscriptions(
             tierByItemId,
             weights,
           });
-          await repo.recordQuestCompletion({
+          const completionInput = {
             discordGuildId,
             forgeChannelId,
             buildingId: shopId,
@@ -678,12 +683,16 @@ export function wireQuestSubscriptions(
             leaderboardPoints,
             subjectDisplayName: resolvedTraderName,
             subjectTravelerEntityId: resolvedTravelerEntityId,
-          });
+          };
+          for (let i = 0; i < completionCount; i++) {
+            await repo.recordQuestCompletion(completionInput);
+          }
           log.debug(
             "recorded barter completion",
             `guild=${discordGuildId}`,
             `forgeCh=${forgeChannelId}`,
-            `order=${questEntityId}`
+            `order=${questEntityId}`,
+            `count=${completionCount}`
           );
         } catch (e: unknown) {
           log.warn("recordQuestCompletion failed", e);

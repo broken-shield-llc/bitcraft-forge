@@ -20,6 +20,16 @@ export function questKeyFromParts(
   return `${shopEntityId.toString()}:${orderEntityId.toString()}`;
 }
 
+/**
+ * How many completions to record for one committed `barter_stall_order_accept`
+ * (bulk turn-ins pass `amount` > 1).
+ */
+export function barterAcceptCompletionCount(amount: number): number {
+  if (!Number.isFinite(amount)) return 1;
+  const n = Math.trunc(amount);
+  return n >= 1 ? n : 1;
+}
+
 export function parseEntityIdString(raw: string): bigint | null {
   const s = raw.trim();
   if (!s) return null;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  barterAcceptCompletionCount,
   formatCompletionSubjectDisplay,
   formatItemStacks,
   formatItemStacksWithNames,
@@ -27,6 +28,25 @@ describe("parseEntityIdString", () => {
 describe("questKeyFromParts", () => {
   it("is stable", () => {
     expect(questKeyFromParts(10n, 2n)).toBe("10:2");
+  });
+});
+
+describe("barterAcceptCompletionCount", () => {
+  it("returns amount when >= 1", () => {
+    expect(barterAcceptCompletionCount(1)).toBe(1);
+    expect(barterAcceptCompletionCount(2)).toBe(2);
+    expect(barterAcceptCompletionCount(5)).toBe(5);
+  });
+
+  it("truncates fractional amounts", () => {
+    expect(barterAcceptCompletionCount(2.9)).toBe(2);
+  });
+
+  it("falls back to 1 for invalid or non-positive values", () => {
+    expect(barterAcceptCompletionCount(0)).toBe(1);
+    expect(barterAcceptCompletionCount(-3)).toBe(1);
+    expect(barterAcceptCompletionCount(Number.NaN)).toBe(1);
+    expect(barterAcceptCompletionCount(Number.POSITIVE_INFINITY)).toBe(1);
   });
 });
 
