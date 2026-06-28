@@ -16,7 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.6.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
